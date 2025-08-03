@@ -1237,22 +1237,95 @@
         `;
         
         const renderGestioneGruppi = () => `
-            ${renderHeader('Gestione Gruppi')}
+            ${renderHeader('Gestione Raggruppamenti')}
             <main>
-                <div class="card" style="margin-bottom:2rem;">
-                    <h3 class="card-title">Crea Condominio Parziale</h3>
-                    <form id="create-partial-condo-form" class="flex gap-4">
-                        <div class="form-group" style="flex-grow:1; margin-bottom:0;">
-                            <label for="partial-condo-name" class="form-label hidden">Nome Gruppo</label>
-                            <input type="text" id="partial-condo-name" required class="form-input" placeholder="Es. Scala A, Box, Giardino...">
+                <!-- Box Riepilogo Regole Esistenti & Creazione Nuove Regole -->
+                <div class="card" style="margin-bottom: 2rem;">
+                    <h3 class="card-title">Regole di Assegnazione Automatica</h3>
+                    <p class="form-label" style="margin-bottom: 1.5rem; color: var(--secondary-text);">
+                        Queste regole assegnano automaticamente un gruppo a una proprietà in base al testo nel suo nome ('Id. U.I.'). Le regole vengono applicate in ordine di priorità.
+                    </p>
+
+                    <!-- Form Creazione Nuova Regola -->
+                    <form id="create-rule-form" class="space-y-4" style="background: var(--surface-color-light); padding: 1rem; border-radius: var(--radius-md); margin-bottom: 2rem;">
+                        <h4 class="card-title" style="font-size: 1.1rem; margin-bottom: 1rem;">Crea Nuova Regola</h4>
+                        <div class="grid" style="grid-template-columns: repeat(2, 1fr); gap: 1rem;">
+                            <div class="form-group">
+                                <label for="rule-keyword" class="form-label">Se 'Id. U.I.' contiene:</label>
+                                <input type="text" id="rule-keyword" required class="form-input" placeholder="Es. box, M1, B2...">
+                            </div>
+                            <div class="form-group">
+                                <label for="rule-group" class="form-label">Assegna al gruppo:</label>
+                                <select id="rule-group" required class="form-select">
+                                    <option value="">Caricamento gruppi...</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="rule-priority" class="form-label">Priorità:</label>
+                                <input type="number" id="rule-priority" required class="form-input" placeholder="Es. 1 (più alta), 10, 20..." value="10">
+                            </div>
+                             <div class="flex items-center justify-end" style="padding-top: 1.5rem;">
+                                <button type="submit" class="btn btn-primary w-full">Aggiungi Regola</button>
+                            </div>
                         </div>
-                        <button type="submit" class="btn btn-primary">Crea</button>
                     </form>
+
+                    <!-- Riepilogo Regole -->
+                    <h4 class="section-title" style="font-size: 1rem; margin-top: 1rem;">Regole Attive (ordinate per priorità)</h4>
+                    <div id="rules-list-container" class="data-table-container">
+                        <p style="color:var(--secondary-text);">Caricamento regole...</p>
+                    </div>
                 </div>
 
-                <h2 class="section-title">Elenco Condomini Parziali</h2>
-                <div id="partial-condos-list" class="list-container">
-                    <p>Caricamento...</p>
+                <!-- Box Creazione Gruppi -->
+                 <div class="card" style="margin-bottom: 2rem;">
+                    <h3 class="card-title">Gestione Gruppi</h3>
+                    <p class="form-label" style="margin-bottom: 1.5rem; color: var(--secondary-text);">
+                        Crea o elimina i gruppi (es. 'Scala A', 'Box', 'Giardino') che possono essere assegnati alle proprietà.
+                    </p>
+                    <form id="create-partial-condo-form" class="flex gap-4" style="margin-bottom: 1.5rem;">
+                        <div class="form-group" style="flex-grow:1; margin-bottom:0;">
+                            <label for="partial-condo-name" class="form-label hidden">Nome Gruppo</label>
+                            <input type="text" id="partial-condo-name" required class="form-input" placeholder="Nome del nuovo gruppo...">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Crea Gruppo</button>
+                    </form>
+                    <div id="partial-condos-list" class="list-container">
+                        <p>Caricamento...</p>
+                    </div>
+                </div>
+
+                <!-- Funzionalità Supervisore per Selezione Range -->
+                <div class="card">
+                    <h3 class="card-title">Assegnazione Manuale Avanzata</h3>
+                    <p class="form-label" style="margin-bottom: 1.5rem; color: var(--secondary-text);">
+                        Seleziona un intervallo di righe dalla tabella anagrafica e assegna loro un gruppo in blocco. Questa operazione modifica i dati salvati.
+                    </p>
+                    <div id="supervisor-assignment-message" class="message-box"></div>
+                    <div id="bulk-assign-controls" class="space-y-4" style="background: var(--surface-color-light); padding: 1rem; border-radius: var(--radius-md); margin-bottom: 2rem;">
+                         <div class="grid" style="grid-template-columns: 1fr 1fr 1fr auto; gap: 1rem; align-items: flex-end;">
+                            <div class="form-group" style="margin-bottom:0;">
+                                <label for="range-start" class="form-label">Da riga n.</label>
+                                <input type="number" id="range-start" class="form-input" placeholder="Inizio" min="1">
+                            </div>
+                            <div class="form-group" style="margin-bottom:0;">
+                                <label for="range-end" class="form-label">A riga n.</label>
+                                <input type="number" id="range-end" class="form-input" placeholder="Fine" min="1">
+                            </div>
+                            <div class="form-group" style="margin-bottom:0;">
+                                <label for="bulk-assign-group" class="form-label">Assegna gruppo:</label>
+                                <select id="bulk-assign-group" class="form-select">
+                                    <option value="">Seleziona...</option>
+                                </select>
+                            </div>
+                            <button id="bulk-assign-btn" class="btn btn-primary">Assegna</button>
+                        </div>
+                    </div>
+
+                    <h4 class="section-title" style="font-size: 1rem; margin-top: 1rem;">Anagrafica Proprietà</h4>
+                    <div id="properties-table-container" class="data-table-container">
+                        <p style="color:var(--secondary-text);">Caricamento anagrafica...</p>
+                    </div>
                 </div>
             </main>
             ${renderBottomNavigation()}
@@ -1457,7 +1530,7 @@ switch (currentPage) {
                     setupInfoUtiliHandlers(); 
                     break;
                 case 'userManagement': if (['supervisore', 'adm'].includes(userType)) { loadUsers(); setupAdminUserCreationHandler(); } break;
-                case 'gestioneGruppi': if (['supervisore', 'adm'].includes(userType)) { loadPartialCondos(); setupUserManagementHandlers(); } break;
+                case 'gestioneGruppi': if (['supervisore', 'adm'].includes(userType)) { setupGestioneGruppiHandlers(); } break;
                 case 'importazione': if (['supervisore', 'adm'].includes(userType)) { setupImportazioneHandlers(); } break;
                 case 'impostazioniSondaggi': if (['supervisore', 'adm'].includes(userType)) { setupImpostazioniSondaggiHandlers(); } break;
             }
@@ -1801,115 +1874,103 @@ switch (currentPage) {
         };
 
         const setupImportazioneHandlers = async () => {
+            // --- STATE ---
             let partialCondosList = [];
+            let assignmentRules = [];
+            let millesimiDataToSave = null;
+            let millesimiFileName = '';
+            let phoneDataToSave = null;
+            let phoneFileName = '';
+
+            // --- REFERENCES ---
+            const fileInputMillesimi = document.getElementById('excel-file-input-millesimi');
+            const tableContainerMillesimi = document.getElementById('excel-table-container-millesimi');
+            const messageBoxMillesimi = document.getElementById('message-import-millesimi');
+            const saveBtnContainerMillesimi = document.getElementById('save-button-container-millesimi');
+            const saveBtnMillesimi = document.getElementById('save-imported-data-btn-millesimi');
+            const fileInputPhones = document.getElementById('excel-file-input-phones');
+            const tableContainerPhones = document.getElementById('excel-table-container-phones');
+            const messageBoxPhones = document.getElementById('message-import-phones');
+            const saveBtnContainerPhones = document.getElementById('save-button-container-phones');
+            const saveBtnPhones = document.getElementById('save-imported-data-btn-phones');
+
+            // --- DATA LOADING & LOGIC ---
 
             const loadPartialCondosForImport = async () => {
                 try {
                     const q = query(collection(db, "partialCondos"), orderBy("name"));
                     const querySnapshot = await getDocs(q);
-                    partialCondosList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    partialCondosList = querySnapshot.docs.map(doc => doc.data());
                 } catch (error) {
                     console.error("Errore nel caricamento dei gruppi per l'importazione:", error);
                     partialCondosList = [];
                 }
             };
 
-            const getAutomaticGroupForImport = (interno) => {
-                if (!interno || partialCondosList.length === 0) return '';
-                const lowerInterno = interno.toString().toLowerCase().trim();
-
-                // --- Regola 1: Box (la più distinta, ha la priorità) ---
-                if (/\be\b|\be-/.test(lowerInterno)) {
-                    const boxCondo = partialCondosList.find(c => c.name.toLowerCase() === 'box');
-                    if (boxCondo) return boxCondo.name;
+            const loadAssignmentRules = async () => {
+                try {
+                    const q = query(collection(db, "assignmentRules"), orderBy("priority", "asc"));
+                    const querySnapshot = await getDocs(q);
+                    assignmentRules = querySnapshot.docs.map(doc => doc.data());
+                } catch (error) {
+                    console.error("Errore nel caricamento delle regole di assegnazione:", error);
+                    assignmentRules = [];
                 }
-
-                // --- Regola 2: Pattern "Lettera + Numero" per Mascagni e Bellini ---
-                // Cerca una 'm' o 'b' seguita da una o più cifre. Es: "M15", "b13", "ES M13"
-                const patternMatch = lowerInterno.match(/([mb])(\d+)/);
-                if (patternMatch) {
-                    const letter = patternMatch[1]; // 'm' o 'b'
-                    const number = patternMatch[2]; // es. "13", "15"
-                    
-                    const buildingName = letter === 'm' ? 'Mascagni' : 'Bellini';
-                    const targetGroupName = `Scala ${buildingName} ${number}`;
-
-                    // Cerca una corrispondenza esatta del nome del gruppo costruito
-                    const foundCondo = partialCondosList.find(c => c.name.toLowerCase() === targetGroupName.toLowerCase());
-                    if (foundCondo) {
-                        return foundCondo.name;
-                    }
-                }
-
-                // --- Regola 3: Fallback generico per altre corrispondenze (es. "Giardino") ---
-                // Utile per gruppi che non seguono il pattern Lettera+Numero
-                const sortedCondos = [...partialCondosList].sort((a, b) => b.name.length - a.name.length);
-                for (const condo of sortedCondos) {
-                    // Per sicurezza, evitiamo di ricontrollare i gruppi già gestiti dai pattern
-                    if (condo.name.toLowerCase().startsWith('scala mascagni') || 
-                        condo.name.toLowerCase().startsWith('scala bellini') ||
-                        condo.name.toLowerCase() === 'box') {
-                        continue;
-                    }
-                    
-                    if (lowerInterno.includes(condo.name.toLowerCase())) {
-                        return condo.name;
-                    }
-                }
-
-                return ''; // Nessun gruppo trovato
             };
 
-            // --- FUNZIONI HELPER COMUNI ---
-            const generateTableHTML = (data, isPreview = false) => {
+            const getAutomaticGroupForImport = (interno) => {
+                if (!interno || assignmentRules.length === 0) return '';
+                const lowerInterno = interno.toString().toLowerCase().trim();
+                for (const rule of assignmentRules) {
+                    if (rule.keyword && lowerInterno.includes(rule.keyword.toLowerCase())) {
+                        return rule.group;
+                    }
+                }
+                return '';
+            };
+
+            const generateMillesimiTableHTML = (data, isPreview) => {
                 if (!data || data.length === 0) return '<p style="color:var(--secondary-text);">Nessun dato da visualizzare.</p>';
 
                 const groupOptionsHtml = `<option value="">Nessun Gruppo</option>` + partialCondosList.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
                 let tableHTML = `<table class="data-table" id="millesimi-preview-table">`;
 
-                // Gestione dati da file (array di array)
-                if (Array.isArray(data[0])) {
-                    const headers = data[0];
-                    const lowerCaseHeaders = headers.map(h => h.toString().toLowerCase());
-                    const internoIndex = lowerCaseHeaders.findIndex(h => ['interno', 'appartamento', 'unita'].includes(h));
-                    const raggruppamentoIndex = lowerCaseHeaders.findIndex(h => h === 'raggruppamento');
+                const headers = Array.isArray(data[0]) ? data[0] : Object.keys(data[0]);
+                const rows = Array.isArray(data[0]) ? data.slice(1) : data;
 
-                    tableHTML += '<thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
-                    for (let i = 1; i < data.length; i++) {
-                        tableHTML += '<tr>';
-                        headers.forEach((header, colIndex) => {
-                            const cellValue = data[i][colIndex] !== undefined ? data[i][colIndex] : '';
-                            if (isPreview && colIndex === raggruppamentoIndex) {
-                                // Ora 'cellValue' contiene già il gruppo corretto, calcolato in precedenza
-                                const selectedGroupOptions = groupOptionsHtml.replace(`value="${cellValue}"`, `value="${cellValue}" selected`);
-                                tableHTML += `<td><select class="form-select" style="padding: 0.4rem 0.6rem; font-size: 0.9rem;">${selectedGroupOptions}</select></td>`;
-                            } else {
-                                tableHTML += `<td>${cellValue}</td>`;
-                            }
-                        });
-                        tableHTML += '</tr>';
-                    }
-                // Gestione dati da Firestore (array di oggetti)
-                } else if (typeof data[0] === 'object') {
-                    const headers = Object.keys(data[0]);
-                    tableHTML += '<thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
-                    data.forEach(row => {
-                        tableHTML += '<tr>';
-                        headers.forEach(header => {
-                            const cellValue = row[header] !== undefined ? row[header] : '';
-                            if (isPreview && header.toLowerCase() === 'raggruppamento') {
-                                const selectedGroupOptions = groupOptionsHtml.replace(`value="${cellValue}"`, `value="${cellValue}" selected`);
-                                tableHTML += `<td><select class="form-select" style="padding: 0.4rem 0.6rem; font-size: 0.9rem;">${selectedGroupOptions}</select></td>`;
-                            } else {
-                                tableHTML += `<td>${cellValue}</td>`;
-                            }
-                        });
-                        tableHTML += '</tr>';
+                const lowerCaseHeaders = headers.map(h => h.toString().toLowerCase());
+                const internoHeader = headers[lowerCaseHeaders.findIndex(h => ['interno', 'appartamento', 'unita'].includes(h))];
+                const gruppoHeader = headers[lowerCaseHeaders.findIndex(h => h === 'raggruppamento')];
+
+                tableHTML += '<thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
+                rows.forEach(row => {
+                    const rowData = Array.isArray(row) ? Object.fromEntries(headers.map((_, i) => [headers[i], row[i]])) : row;
+                    tableHTML += '<tr>';
+                    headers.forEach(header => {
+                        let cellValue = rowData[header] !== undefined ? rowData[header] : '';
+                        if (header === gruppoHeader) {
+                            const groupToSelect = isPreview ? getAutomaticGroupForImport(rowData[internoHeader]) : cellValue;
+                            const selectedGroupOptions = groupOptionsHtml.replace(`value="${groupToSelect}"`, `value="${groupToSelect}" selected`);
+                            tableHTML += `<td><select class="form-select" style="padding: 0.4rem 0.6rem; font-size: 0.9rem;">${selectedGroupOptions}</select></td>`;
+                        } else {
+                            tableHTML += `<td>${cellValue}</td>`;
+                        }
                     });
-                } else {
-                    return '<p style="color:var(--secondary-text);">Formato dati non riconosciuto.</p>';
-                }
+                    tableHTML += '</tr>';
+                });
+                tableHTML += '</tbody></table>';
+                return tableHTML;
+            };
 
+            const generateSimpleTableHTML = (data) => {
+                if (!data || data.length === 0) return '<p style="color:var(--secondary-text);">Nessun dato da visualizzare.</p>';
+                const headers = Object.keys(data[0]);
+                let tableHTML = '<table class="data-table"><thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
+                data.forEach(row => {
+                    tableHTML += '<tr>';
+                    headers.forEach(h => tableHTML += `<td>${row[h] !== undefined ? row[h] : ''}</td>`);
+                    tableHTML += '</tr>';
+                });
                 return tableHTML + '</tbody></table>';
             };
 
@@ -1924,44 +1985,13 @@ switch (currentPage) {
                 });
             };
 
-            // --- LOGICA PER IMPORTAZIONE MILLESIMI ---
-            const fileInputMillesimi = document.getElementById('excel-file-input-millesimi');
-            const tableContainerMillesimi = document.getElementById('excel-table-container-millesimi');
-            const messageBoxMillesimi = document.getElementById('message-import-millesimi');
-            const saveBtnContainerMillesimi = document.getElementById('save-button-container-millesimi');
-            const saveBtnMillesimi = document.getElementById('save-imported-data-btn-millesimi');
-            let millesimiDataToSave = null;
-            let millesimiFileName = '';
-
             const loadLatestMillesimiData = async () => {
                 const q = query(collection(db, "importedData"), orderBy("uploadedAt", "desc"), limit(1));
                 const snapshot = await getDocs(q);
                 if (!snapshot.empty) {
                     const docData = snapshot.docs[0].data();
-                    const data = docData.tableData;
-
-                    // --- LOGICA DI RICALCOLO: Applica sempre i gruppi automatici ai dati caricati ---
-                    if (data.length > 0) {
-                        const headers = Object.keys(data[0]);
-                        const lowerCaseHeaders = headers.map(h => h.toLowerCase());
-                        const internoHeader = headers[lowerCaseHeaders.findIndex(h => ['interno', 'appartamento', 'unita'].includes(h))];
-                        const gruppoHeader = headers[lowerCaseHeaders.findIndex(h => h === 'raggruppamento')];
-
-                        if (internoHeader && gruppoHeader) {
-                            data.forEach(row => {
-                                const internoValue = row[internoHeader];
-                                const autoGroup = getAutomaticGroupForImport(internoValue);
-                                row[gruppoHeader] = autoGroup; // Sovrascrive il raggruppamento con quello ricalcolato
-                            });
-                        }
-                    }
-                    // --- FINE LOGICA DI RICALCOLO ---
-
-                    // Passiamo 'true' per renderizzare la tabella in modalità modificabile
-                    tableContainerMillesimi.innerHTML = generateTableHTML(data, true);
-                    // Mostriamo il pulsante di salvataggio anche per i dati esistenti
+                    tableContainerMillesimi.innerHTML = generateMillesimiTableHTML(docData.tableData, false);
                     saveBtnContainerMillesimi.classList.remove('hidden');
-                    // Impostiamo il nome del file per il logging, se disponibile
                     millesimiFileName = docData.fileName || 'dati_esistenti.xlsx';
                 } else {
                     tableContainerMillesimi.innerHTML = '<p style="color:var(--secondary-text);">Nessun dato anagrafico ancora importato.</p>';
@@ -1969,7 +1999,7 @@ switch (currentPage) {
                 }
             };
 
-            fileInputMillesimi.addEventListener('change', (event) => {
+            fileInputMillesimi?.addEventListener('change', (event) => {
                 const file = event.target.files[0];
                 millesimiDataToSave = null; millesimiFileName = '';
                 saveBtnContainerMillesimi.classList.add('hidden'); messageBoxMillesimi.style.display = 'none';
@@ -1980,36 +2010,19 @@ switch (currentPage) {
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     try {
-                        const data = new Uint8Array(e.target.result);
-                        const workbook = XLSX.read(data, { type: 'array' });
+                        const fileData = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(fileData, { type: 'array' });
                         const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
                         if (jsonData.length < 2) throw new Error("Il file deve contenere almeno un'intestazione e una riga di dati.");
 
-                        // Aggiungi la colonna "raggruppamento" se non esiste
                         let headers = jsonData[0];
-                        let lowerCaseHeaders = headers.map(h => h.toString().toLowerCase());
-                        if (!lowerCaseHeaders.includes('raggruppamento')) {
+                        if (!headers.map(h => h.toLowerCase()).includes('raggruppamento')) {
                             headers.push('raggruppamento');
-                            lowerCaseHeaders.push('raggruppamento');
-                            for (let i = 1; i < jsonData.length; i++) {
-                                jsonData[i].push(''); // Aggiunge una cella vuota temporanea
-                            }
-                        }
-
-                        // Popola la colonna raggruppamento con i valori calcolati
-                        const internoIndex = lowerCaseHeaders.findIndex(h => ['interno', 'appartamento', 'unita'].includes(h));
-                        const raggruppamentoIndex = lowerCaseHeaders.findIndex(h => h === 'raggruppamento');
-
-                        if (internoIndex !== -1) {
-                            for (let i = 1; i < jsonData.length; i++) {
-                                const internoValue = jsonData[i][internoIndex];
-                                const autoGroup = getAutomaticGroupForImport(internoValue);
-                                jsonData[i][raggruppamentoIndex] = autoGroup; // Aggiorna il modello dati
-                            }
+                            jsonData.forEach((row, i) => { if(i>0) row.push(''); });
                         }
                         
-                        millesimiDataToSave = jsonData;
-                        tableContainerMillesimi.innerHTML = generateTableHTML(jsonData, true); // Passa true per indicare che è un'anteprima
+                        millesimiDataToSave = jsonData; // Save raw array data
+                        tableContainerMillesimi.innerHTML = generateMillesimiTableHTML(jsonData, true);
                         saveBtnContainerMillesimi.classList.remove('hidden');
                     } catch (err) {
                         messageBoxMillesimi.className = 'message-box error';
@@ -2020,10 +2033,9 @@ switch (currentPage) {
                 reader.readAsArrayBuffer(file);
             });
 
-            saveBtnMillesimi.addEventListener('click', async () => {
+            saveBtnMillesimi?.addEventListener('click', async () => {
                 const previewTable = document.getElementById('millesimi-preview-table');
                 if (!previewTable) return;
-
                 saveBtnMillesimi.disabled = true; saveBtnMillesimi.textContent = 'Salvataggio...';
                 
                 try {
@@ -2047,10 +2059,8 @@ switch (currentPage) {
                     if (tableData.length === 0) throw new Error("Nessun dato da salvare.");
 
                     await addDoc(collection(db, "importedData"), {
-                        fileName: millesimiFileName,
-                        tableData: tableData,
-                        uploadedBy: currentUser.uid,
-                        uploadedAt: serverTimestamp()
+                        fileName: millesimiFileName, tableData: tableData,
+                        uploadedBy: currentUser.uid, uploadedAt: serverTimestamp()
                     });
                     await logActivity("data_imported", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { fileName: millesimiFileName });
                     
@@ -2060,39 +2070,27 @@ switch (currentPage) {
                     messageBoxMillesimi.textContent = 'Dati salvati con successo!';
                     messageBoxMillesimi.style.display = 'block';
                     setTimeout(() => { messageBoxMillesimi.style.display = 'none'; }, 3000);
-                    
                     await loadLatestMillesimiData();
-
                 } catch (error) {
                     messageBoxMillesimi.className = 'message-box error';
-                    messageBoxMillesimi.textContent = `Errore durante il salvataggio: ${error.message}`;
+                    messageBoxMillesimi.textContent = `Errore: ${error.message}`;
                     messageBoxMillesimi.style.display = 'block';
                 } finally {
                     saveBtnMillesimi.disabled = false; saveBtnMillesimi.textContent = 'Salva Dati Anagrafica';
                 }
             });
 
-            // --- LOGICA PER IMPORTAZIONE NUMERI UTILI ---
-            const fileInputPhones = document.getElementById('excel-file-input-phones');
-            const tableContainerPhones = document.getElementById('excel-table-container-phones');
-            const messageBoxPhones = document.getElementById('message-import-phones');
-            const saveBtnContainerPhones = document.getElementById('save-button-container-phones');
-            const saveBtnPhones = document.getElementById('save-imported-data-btn-phones');
-            let phoneDataToSave = null;
-            let phoneFileName = '';
-
             const loadLatestPhoneData = async () => {
                 const q = query(collection(db, "importedPhoneNumbers"), orderBy("uploadedAt", "desc"), limit(1));
                 const snapshot = await getDocs(q);
                 if (!snapshot.empty) {
-                    const data = snapshot.docs[0].data().tableData;
-                    tableContainerPhones.innerHTML = generateTableHTML(data);
+                    tableContainerPhones.innerHTML = generateSimpleTableHTML(snapshot.docs[0].data().tableData);
                 } else {
                     tableContainerPhones.innerHTML = '<p style="color:var(--secondary-text);">Nessun numero utile ancora importato.</p>';
                 }
             };
 
-            fileInputPhones.addEventListener('change', (event) => {
+            fileInputPhones?.addEventListener('change', (event) => {
                 const file = event.target.files[0];
                 phoneDataToSave = null; phoneFileName = '';
                 saveBtnContainerPhones.classList.add('hidden'); messageBoxPhones.style.display = 'none';
@@ -2108,7 +2106,7 @@ switch (currentPage) {
                         const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
                         if (jsonData.length === 0) throw new Error("Il file è vuoto.");
                         phoneDataToSave = jsonData;
-                        tableContainerPhones.innerHTML = generateTableHTML(jsonData);
+                        tableContainerPhones.innerHTML = generateSimpleTableHTML(convertArrayOfArraysToObjects(jsonData));
                         saveBtnContainerPhones.classList.remove('hidden');
                     } catch (err) {
                         messageBoxPhones.className = 'message-box error';
@@ -2119,8 +2117,8 @@ switch (currentPage) {
                 reader.readAsArrayBuffer(file);
             });
 
-            saveBtnPhones.addEventListener('click', async () => {
-                if (!phoneDataToSave || phoneDataToSave.length < 2) return;
+            saveBtnPhones?.addEventListener('click', async () => {
+                if (!phoneDataToSave) return;
                 saveBtnPhones.disabled = true; saveBtnPhones.textContent = 'Salvataggio...';
                 try {
                     await addDoc(collection(db, "importedPhoneNumbers"), {
@@ -2142,35 +2140,354 @@ switch (currentPage) {
                 }
             });
 
-            // Carica i dati iniziali in sequenza per evitare race condition
-            // 1. Carica prima i gruppi, perché sono necessari per il calcolo
-            await loadPartialCondosForImport();
-            
-            // 2. Ora carica i dati dei millesimi e dei telefoni (possono andare in parallelo)
+            // --- INITIALIZATION ---
+            await Promise.all([loadAssignmentRules(), loadPartialCondosForImport()]);
             await Promise.all([loadLatestMillesimiData(), loadLatestPhoneData()]);
         };
 
-        const setupUserManagementHandlers = () => {
-            const form = document.getElementById('create-partial-condo-form');
-            form?.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const nameInput = document.getElementById('partial-condo-name');
-                const name = nameInput.value.trim();
-                if (!name) return;
+        const setupGestioneGruppiHandlers = () => {
+            // --- REFERENCES ---
+            const createRuleForm = document.getElementById('create-rule-form');
+            const ruleKeywordInput = document.getElementById('rule-keyword');
+            const ruleGroupSelect = document.getElementById('rule-group');
+            const rulePriorityInput = document.getElementById('rule-priority');
+            const rulesListContainer = document.getElementById('rules-list-container');
 
+            const createCondoForm = document.getElementById('create-partial-condo-form');
+            const condoNameInput = document.getElementById('partial-condo-name');
+            const condosListContainer = document.getElementById('partial-condos-list');
+
+            const bulkAssignBtn = document.getElementById('bulk-assign-btn');
+            const rangeStartInput = document.getElementById('range-start');
+            const rangeEndInput = document.getElementById('range-end');
+            const bulkAssignGroupSelect = document.getElementById('bulk-assign-group');
+            const propertiesTableContainer = document.getElementById('properties-table-container');
+            const supervisorMessage = document.getElementById('supervisor-assignment-message');
+
+            let fullPropertiesData = []; // Cache for the full property data with doc IDs
+
+            // --- DATA LOADING ---
+
+            // 1. Load Groups (Partial Condos)
+            const loadGroups = () => {
+                const q = query(collection(db, "partialCondos"), orderBy("name"));
+                onSnapshot(q, (snapshot) => {
+                    const groups = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+                    // Populate dropdowns
+                    const optionsHtml = '<option value="">Seleziona...</option>' + groups.map(g => `<option value="${g.name}">${g.name}</option>`).join('');
+                    if (ruleGroupSelect) ruleGroupSelect.innerHTML = optionsHtml;
+                    if (bulkAssignGroupSelect) bulkAssignGroupSelect.innerHTML = optionsHtml;
+
+                    // Populate list view
+                    if (condosListContainer) {
+                         if (snapshot.empty) {
+                            condosListContainer.innerHTML = `<p style="color:var(--secondary-text); padding: 1rem 0;">Nessun gruppo creato.</p>`;
+                            return;
+                        }
+                        condosListContainer.innerHTML = snapshot.docs.map(docSnap => {
+                            const condo = docSnap.data();
+                            return `
+                            <div class="list-item">
+                                <div class="list-item-icon"><svg fill="currentColor" viewBox="0 0 24 24"><path d="M16 14h-2v2h2v-2m4-4h-2v2h2V10m0-4h-2v2h2V6M12 2L2 7v13h20V7L12 2z"/></svg></div>
+                                <div class="list-item-content">
+                                    <div class="title">${condo.name}</div>
+                                </div>
+                                <div class="list-item-action">
+                                    <button onclick="deletePartialCondo('${docSnap.id}')" class="btn" style="background:var(--danger); color:white; padding: 0.4rem 0.8rem; font-size:0.8rem;">Elimina</button>
+                                </div>
+                            </div>
+                            `;
+                        }).join('');
+                    }
+                });
+            };
+
+            // 2. Load Assignment Rules
+            const loadRules = () => {
+                const q = query(collection(db, "assignmentRules"), orderBy("priority", "asc"));
+                onSnapshot(q, (snapshot) => {
+                    if (!rulesListContainer) return;
+                    if (snapshot.empty) {
+                        rulesListContainer.innerHTML = `<p style="color:var(--secondary-text);">Nessuna regola di assegnazione automatica definita.</p>`;
+                        return;
+                    }
+
+                    let tableHtml = `<table class="data-table"><thead><tr><th>Priorità</th><th>Se 'Id. U.I.' contiene</th><th>Assegna a Gruppo</th><th style="text-align:right;">Azione</th></tr></thead><tbody>`;
+                    tableHtml += snapshot.docs.map(docSnap => {
+                        const rule = docSnap.data();
+                        return `
+                        <tr>
+                            <td>${rule.priority}</td>
+                            <td>"${rule.keyword}"</td>
+                            <td>${rule.group}</td>
+                            <td style="text-align:right;">
+                                <button onclick="deleteAssignmentRule('${docSnap.id}')" class="btn" style="background:var(--danger); color:white; padding: 0.4rem 0.8rem; font-size:0.8rem;">Elimina</button>
+                            </td>
+                        </tr>
+                        `;
+                    }).join('');
+                    tableHtml += `</tbody></table>`;
+                    rulesListContainer.innerHTML = tableHtml;
+                });
+            };
+
+            // 3. Load Properties from importedData
+            const loadProperties = async () => {
+                if (!propertiesTableContainer) return;
+                propertiesTableContainer.innerHTML = '<p style="color:var(--secondary-text);">Caricamento anagrafica...</p>';
                 try {
-                    await addDoc(collection(db, 'partialCondos'), {
-                        name: name,
-                        createdBy: currentUser.uid,
-                        createdAt: serverTimestamp()
+                    const q = query(collection(db, "importedData"), orderBy("uploadedAt", "desc"), limit(1));
+                    const snapshot = await getDocs(q);
+
+                    if (snapshot.empty) {
+                        propertiesTableContainer.innerHTML = `<p class="message-box error" style="display:block;">Dati anagrafici non trovati. Eseguire prima l'importazione dalla pagina 'Importa Dati'.</p>`;
+                        return;
+                    }
+
+                    const docData = snapshot.docs[0].data();
+                    const properties = docData.tableData || [];
+                    fullPropertiesData = [{docId: snapshot.docs[0].id, properties: properties}]; // Cache data
+
+                    if (properties.length === 0) {
+                         propertiesTableContainer.innerHTML = `<p style="color:var(--secondary-text);">Il file anagrafico importato è vuoto.</p>`;
+                         return;
+                    }
+
+                    const headers = Object.keys(properties[0]);
+                    const relevantHeaders = headers.filter(h => ['nominativo', 'proprietario', 'interno', 'appartamento', 'unita', 'millesimi', 'quota', 'raggruppamento'].some(rh => h.toLowerCase().includes(rh)));
+
+                    let tableHtml = `<table class="data-table"><thead><tr><th>#</th>`;
+                    relevantHeaders.forEach(h => tableHtml += `<th>${h}</th>`);
+                    tableHtml += '</tr></thead><tbody>';
+                    properties.forEach((row, index) => {
+                        tableHtml += `<tr><td>${index + 1}</td>`;
+                        relevantHeaders.forEach(h => tableHtml += `<td>${row[h] !== undefined ? row[h] : ''}</td>`);
+                        tableHtml += '</tr>';
                     });
-                    await logActivity("partial_condo_created", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { name: name });
-                    nameInput.value = '';
+                    tableHtml += '</tbody></table>';
+                    propertiesTableContainer.innerHTML = tableHtml;
+
                 } catch (error) {
-                    console.error("Errore nella creazione del condominio parziale:", error);
+                    console.error("Errore nel caricamento dell'anagrafica:", error);
+                    propertiesTableContainer.innerHTML = `<p class="message-box error" style="display:block;">Errore: ${error.message}</p>`;
+                }
+            };
+
+            // --- EVENT HANDLERS ---
+
+            // 1. Handle Group Creation
+            createCondoForm?.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const name = condoNameInput.value.trim();
+                if (!name) return;
+                try {
+                    await addDoc(collection(db, 'partialCondos'), { name, createdBy: currentUser.uid, createdAt: serverTimestamp() });
+                    await logActivity("partial_condo_created", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { name });
+                    condoNameInput.value = '';
+                } catch (error) {
+                    console.error("Errore creazione gruppo:", error);
                     alert("Si è verificato un errore.");
                 }
             });
+
+            // 2. Handle Rule Creation
+            createRuleForm?.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const keyword = ruleKeywordInput.value.trim();
+                const group = ruleGroupSelect.value;
+                const priority = parseInt(rulePriorityInput.value, 10);
+
+                if (!keyword || !group || isNaN(priority)) {
+                    alert('Compilare tutti i campi per la regola.');
+                    return;
+                }
+
+                try {
+                    await addDoc(collection(db, 'assignmentRules'), { keyword, group, priority, createdBy: currentUser.uid, createdAt: serverTimestamp() });
+                    await logActivity("assignment_rule_created", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { keyword, group, priority });
+                    createRuleForm.reset();
+                    rulePriorityInput.value = 10; // Reset to default
+                } catch (error) {
+                     console.error("Errore creazione regola:", error);
+                    alert("Si è verificato un errore.");
+                }
+            });
+
+            // 3. Handle Bulk Assignment
+            bulkAssignBtn?.addEventListener('click', async () => {
+                const start = parseInt(rangeStartInput.value, 10);
+                const end = parseInt(rangeEndInput.value, 10);
+                const group = bulkAssignGroupSelect.value;
+
+                supervisorMessage.style.display = 'none';
+
+                if (isNaN(start) || isNaN(end) || !group || start < 1 || end < start) {
+                    supervisorMessage.className = 'message-box error';
+                    supervisorMessage.textContent = 'Inserire un intervallo di righe valido e selezionare un gruppo.';
+                    supervisorMessage.style.display = 'block';
+                    return;
+                }
+
+                if (fullPropertiesData.length === 0 || !fullPropertiesData[0].properties) {
+                     supervisorMessage.className = 'message-box error';
+                     supervisorMessage.textContent = 'Dati anagrafici non caricati. Impossibile procedere.';
+                     supervisorMessage.style.display = 'block';
+                     return;
+                }
+
+                const docId = fullPropertiesData[0].docId;
+                const properties = [...fullPropertiesData[0].properties]; // Create a mutable copy
+                const totalRows = properties.length;
+
+                if (end > totalRows) {
+                     supervisorMessage.className = 'message-box error';
+                     supervisorMessage.textContent = `L'intervallo specificato (fino a ${end}) supera il numero di righe totali (${totalRows}).`;
+                     supervisorMessage.style.display = 'block';
+                     return;
+                }
+
+                bulkAssignBtn.disabled = true;
+                bulkAssignBtn.textContent = '...';
+
+                try {
+                    // Find raggruppamento header name
+                    const headers = Object.keys(properties[0] || {});
+                    const gruppoHeader = headers.find(h => h.toLowerCase() === 'raggruppamento');
+                    if (!gruppoHeader) throw new Error("Colonna 'raggruppamento' non trovata nei dati importati.");
+
+                    // Update the local data copy
+                    for (let i = start - 1; i < end; i++) {
+                        properties[i][gruppoHeader] = group;
+                    }
+
+                    // Update the entire document in Firestore
+                    await updateDoc(doc(db, "importedData", docId), { tableData: properties });
+
+                    await logActivity("bulk_assign_group", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { range: `${start}-${end}`, group });
+
+                    supervisorMessage.className = 'message-box success';
+                    supervisorMessage.textContent = `Gruppo '${group}' assegnato con successo alle righe da ${start} a ${end}. La tabella verrà ricaricata.`;
+                    supervisorMessage.style.display = 'block';
+
+                    // Clear inputs and reload table to show changes
+                    rangeStartInput.value = '';
+                    rangeEndInput.value = '';
+                    bulkAssignGroupSelect.value = '';
+                    await loadProperties();
+
+                } catch (error) {
+                    supervisorMessage.className = 'message-box error';
+                    supervisorMessage.textContent = `Errore: ${error.message}`;
+                    supervisorMessage.style.display = 'block';
+                } finally {
+                    bulkAssignBtn.disabled = false;
+                    bulkAssignBtn.textContent = 'Assegna';
+                }
+            });
+
+            // --- INITIAL LOAD ---
+            loadGroups();
+            loadRules();
+            loadProperties();
+        };
+
+        const setupAdminUserCreationHandler = () => {
+            const form = document.getElementById('admin-create-user-form');
+            if (!form) return;
+
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const email = document.getElementById('admin-email').value;
+                const password = document.getElementById('admin-password').value;
+                const profileData = {
+                    nome: document.getElementById('admin-nome').value,
+                    cognome: document.getElementById('admin-cognome').value,
+                    tipoUtente: document.getElementById('admin-tipo-utente').value,
+                    proprieta: [], // Inizialmente vuoto, da modificare manualmente se necessario
+                    telefono: document.getElementById('admin-telefono').value
+                };
+
+                // Aggiungi proprietà se specificate
+                const appartamento = document.getElementById('admin-appartamento').value;
+                const millesimi = parseFloat(document.getElementById('admin-millesimi').value);
+                if (appartamento && !isNaN(millesimi)) {
+                    profileData.proprieta.push({ interno: appartamento, millesimi: millesimi, gruppo: '' });
+                }
+
+                const messageBox = document.getElementById('admin-create-user-message');
+                messageBox.style.display = 'none';
+
+                try {
+                    if (!profileData.nome || !profileData.cognome || !profileData.tipoUtente) {
+                        throw new Error('Nome, Cognome e Tipo Utente sono obbligatori.');
+                    }
+
+                    await register(email, password, profileData);
+
+                    messageBox.className = 'message-box success';
+                    messageBox.textContent = `Utente ${email} creato con successo!`;
+                    messageBox.style.display = 'block';
+                    form.reset();
+                } catch (error) {
+                    messageBox.className = 'message-box error';
+                    messageBox.textContent = `Errore: ${error.message}`;
+                    messageBox.style.display = 'block';
+                }
+            });
+        };
+
+        const loadPartialCondos = () => {
+            const listEl = document.getElementById('partial-condos-list');
+            if (!listEl) return;
+
+            const q = query(collection(db, "partialCondos"), orderBy("name"));
+            onSnapshot(q, (snapshot) => {
+                if (snapshot.empty) {
+                    listEl.innerHTML = `<p style="color:var(--secondary-text); padding: 1rem 0;">Nessun gruppo creato.</p>`;
+                    return;
+                }
+                listEl.innerHTML = snapshot.docs.map(docSnap => {
+                    const condo = docSnap.data();
+                    return `
+                    <div class="list-item">
+                        <div class="list-item-icon"><svg fill="currentColor" viewBox="0 0 24 24"><path d="M16 14h-2v2h2v-2m4-4h-2v2h2V10m0-4h-2v2h2V6M12 2L2 7v13h20V7L12 2z"/></svg></div>
+                        <div class="list-item-content">
+                            <div class="title">${condo.name}</div>
+                        </div>
+                        <div class="list-item-action">
+                            <button onclick="deletePartialCondo('${docSnap.id}')" class="btn" style="background:var(--danger); color:white; padding: 0.4rem 0.8rem; font-size:0.8rem;">Elimina</button>
+                        </div>
+                    </div>
+                    `;
+                }).join('');
+            });
+        };
+
+        const deletePartialCondo = async (id) => {
+            if (!confirm('Sei sicuro di voler eliminare questo gruppo? L\'azione è irreversibile.')) {
+                return;
+            }
+            try {
+                await deleteDoc(doc(db, 'partialCondos', id));
+                await logActivity("partial_condo_deleted", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { deletedId: id });
+            } catch (error) {
+                console.error("Errore durante l'eliminazione:", error);
+                alert("Si è verificato un errore durante l'eliminazione.");
+            }
+        };
+
+        const deleteAssignmentRule = async (id) => {
+            if (!confirm('Sei sicuro di voler eliminare questa regola?')) {
+                return;
+            }
+            try {
+                await deleteDoc(doc(db, 'assignmentRules', id));
+                await logActivity("assignment_rule_deleted", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { deletedId: id });
+            } catch (error) {
+                console.error("Errore durante l'eliminazione della regola:", error);
+                alert("Si è verificato un errore durante l'eliminazione.");
+            }
         };
 
         const setupAdminUserCreationHandler = () => {
@@ -2531,6 +2848,7 @@ switch (currentPage) {
         window.showCommunicationDetail = showCommunicationDetail;
         window.showPollVoters = showPollVoters;
         window.deletePartialCondo = deletePartialCondo;
+        window.deleteAssignmentRule = deleteAssignmentRule;
         window.deleteUsefulNumber = deleteUsefulNumber;
 
         onAuthStateChanged(auth, async (user) => {
