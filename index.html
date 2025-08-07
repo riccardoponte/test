@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="it">
 <head>
@@ -63,6 +62,21 @@
             gap: 1rem;
             margin-bottom: 2rem;
             padding: 1rem 0;
+        }
+        .back-btn {
+            background: none;
+            border: none;
+            color: var(--primary-text);
+            cursor: pointer;
+            padding: 0.5rem;
+            margin-left: -0.5rem; /* Compensa il padding per un migliore allineamento visivo */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+        }
+        .back-btn:active {
+            background-color: rgba(255,255,255,0.1);
         }
         .user-avatar {
             width: 40px;
@@ -580,6 +594,7 @@
         let currentUser = null;
         let userProfile = null;
         let currentPage = 'login';
+        let navigationHistory = []; // Aggiunto per la cronologia di navigazione
         let communicationsListener = null;
 
         // Stato per la registrazione, reso globale a livello di modulo per un reset corretto
@@ -614,29 +629,46 @@
         const logActivity=async(t,e,o,a={})=>{try{await addDoc(collection(db,"activities"),{type:t,userId:e,userName:o,details:a,timestamp:serverTimestamp(),createdAt:new Date})}catch(n){console.error("Errore nel logging:",n)}};
         const register=async(t,e,o)=>{const a=await createUserWithEmailAndPassword(auth,t,e);const totalMillesimi=o.proprieta.reduce(((sum,prop)=>sum+(parseFloat(prop.millesimi)||0)),0);return await setDoc(doc(db,"users",a.user.uid),{nome:o.nome,cognome:o.cognome,email:t,tipoUtente:o.tipoUtente,proprieta:o.proprieta||[],telefono:o.telefono||"",millesimiTotali:totalMillesimi,createdAt:(new Date).toISOString()}),await logActivity("user_registered",a.user.uid,`${o.nome} ${o.cognome}`,{userType:o.tipoUtente}),a};
         const login=async(t,e)=>await signInWithEmailAndPassword(auth,t,e);
-        
-        // --- FUNZIONE LOGOUT CORRETTA ---
         const logout=async()=>{
             communicationsListener&&(communicationsListener(),communicationsListener=null);
-            // Si limita a chiamare signOut. Sarà onAuthStateChanged a gestire il resto.
+            // Non è più necessario azzerare manualmente lo stato qui,
+            // perché onAuthStateChanged lo farà in modo affidabile.
+            // La chiamata a navigateTo('login') viene rimossa perché gestita da onAuthStateChanged.
             await signOut(auth);
         };
-
         const resetPassword=async t=>await sendPasswordResetEmail(auth,t);
         const loadUserProfile=async t=>{if(t){const e=await getDoc(doc(db,"users",t.uid));e.exists()&&(userProfile=e.data())}};
         
-        const navigateTo=(e)=>{
+        const navigateBack = () => {
+            if (navigationHistory.length > 0) {
+                const previousPage = navigationHistory.pop();
+                // Il secondo parametro 'true' indica che è una navigazione "indietro"
+                navigateTo(previousPage, true);
+            }
+        };
+
+        const navigateTo = (newPage, isBackNavigation = false) => {
             const userType = userProfile?.tipoUtente;
-            if (['supervisore', 'adm'].includes(userType) && ['userManagement', 'gestioneGruppi', 'importazione'].includes(e)) {
-                 currentPage = e;
-                 renderCurrentPage();
-                 return;
+
+            // Gestione del reindirizzamento per il custode
+            if (userType === "custode" && ["dashboard", "bacheca", "sondaggi"].includes(newPage)) {
+                navigateTo("segnalazioni", isBackNavigation);
+                return;
             }
-            if(userType==="custode"&&["dashboard","bacheca","sondaggi"].includes(e)){
-                navigateTo("segnalazioni");
-            } else {
-                currentPage=e,renderCurrentPage();
+
+            // Se la pagina non cambia, non fare nulla per evitare di sporcare la cronologia
+            if (newPage === currentPage) {
+                return;
             }
+
+            // Aggiungi la pagina corrente alla cronologia solo se si sta navigando "in avanti"
+            if (!isBackNavigation) {
+                navigationHistory.push(currentPage);
+            }
+
+            // Imposta la nuova pagina e la renderizza
+            currentPage = newPage;
+            renderCurrentPage();
         };
         
         const getPriorityColor=t=>({alta:"priority-alta",media:"priority-media",bassa:"priority-bassa"}[t]||"priority-bassa");
@@ -645,8 +677,17 @@
         const renderHeader = (title) => {
             const userInitial = userProfile?.nome ? userProfile.nome.charAt(0).toUpperCase() : 'U';
             const userType = userProfile?.tipoUtente || '';
+            const backButtonHtml = navigationHistory.length > 0 ? `
+                <button onclick="navigateBack()" class="back-btn" aria-label="Torna indietro">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width: 28px; height: 28px;">
+                        <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+                    </svg>
+                </button>
+            ` : '';
+
             return `
             <header class="page-header">
+                ${backButtonHtml}
                 <div class="user-avatar">${userInitial}</div>
                 <div>
                     <h1 class="page-title">${title}</h1>
@@ -1521,7 +1562,7 @@
 
             app.innerHTML = content;
 
-            switch (currentPage) {
+switch (currentPage) {
                 case 'elencoCondomini': loadElencoCondomini(); break;
                 case 'bacheca': loadCommunications(); setupBachecaHandlers(); break;
                 case 'sondaggi': if (userType !== 'custode') { loadPolls(); setupPollHandlers(); } break;
@@ -1546,10 +1587,11 @@
             }
         };
 
+                // --- MODIFICA INIZIO: Logica di registrazione utente aggiornata ---
         const setupLoginHandlers = () => {
             let isRegistering = false;
-            let localGroupedProperties = {};
-            let localPartialCondosList = [];
+            let localGroupedProperties = {}; // Stato locale alla funzione, resettato ogni volta
+            let localPartialCondosList = []; // Stato locale alla funzione, resettato ogni volta
 
             const toggleAuthBtn = document.getElementById("toggle-auth");
             const authTitle = document.getElementById("auth-title");
@@ -1775,7 +1817,25 @@
                         propertyItemsContainer.innerHTML = '';
                         propertySelectionWrapper.classList.add('hidden');
                         summaryEl.innerHTML = 'Seleziona un nominativo per continuare...';
-                    } else { await login(o, n); }
+                    } else {
+                        await login(o, n);
+                        // FIX: Non affidarsi più passivamente a onAuthStateChanged per la navigazione post-login.
+                        // Dopo un login andato a buon fine, prendiamo il controllo diretto del flusso.
+                        // 1. Aggiorniamo il nostro stato globale con l'utente corrente.
+                        currentUser = auth.currentUser;
+                        if (currentUser) {
+                            // 2. Carichiamo il suo profilo.
+                            await loadUserProfile(currentUser);
+                            // 3. Navighiamo alla pagina corretta.
+                            const userType = userProfile?.tipoUtente;
+                            let landingPage = 'dashboard';
+                            if (userType === 'custode') landingPage = 'segnalazioni';
+                            navigateTo(landingPage);
+                        } else {
+                            // Caso di sicurezza, anche se non dovrebbe mai accadere dopo un login riuscito.
+                            throw new Error("Login fallito, utente non trovato.");
+                        }
+                    }
                 } catch (p) { d.textContent = p.message; d.style.display = "block"; }
             });
             
@@ -1793,6 +1853,7 @@
                 });
             });
         };
+        // --- MODIFICA FINE ---
 
         const setupBachecaHandlers=()=>{const e=document.getElementById("create-communication-form");e?.addEventListener("submit",async t=>{t.preventDefault();const o=document.getElementById("comm-title"),n=document.getElementById("comm-content"),d=document.getElementById("publish-comm-btn"),i=o.value.trim(),r=n.value.trim();if(!i||!r)return alert("Compila titolo e messaggio.");d.disabled=!0,d.textContent="...";try{await addDoc(collection(db,"communications"),{title:i,content:r,createdBy:`${userProfile.nome} ${userProfile.cognome}`,createdById:currentUser.uid,createdAt:serverTimestamp()}),await logActivity("communication_posted",currentUser.uid,`${userProfile.nome} ${userProfile.cognome}`,{title:i}),e.reset()}catch(c){console.error("Errore:",c),alert("Si è verificato un errore.")}finally{d.disabled=!1,d.textContent="Pubblica"}})};
         const setupPollHandlers=()=>{const e=document.getElementById("create-poll-form");if(!e)return;const t=document.getElementById("poll-options-list"),o=document.getElementById("add-poll-option");function n(e=""){const o=document.createElement("div");o.className="flex items-center gap-2",o.innerHTML=`<input type="text" class="form-input" style="flex:1" required placeholder="Testo opzione" value="${e}"><button type="button" class="btn-remove-option" style="background:var(--surface-color-light); border:none; color:var(--primary-text); width:36px; height:36px; border-radius:50%; cursor:pointer;">−</button>`,o.querySelector(".btn-remove-option").onclick=()=>{t.removeChild(o),t.childElementCount<2&&n()},t.appendChild(o)}0===t.childElementCount&&(n(),n()),o.onclick=e=>{e.preventDefault(),n()},e.addEventListener("submit",async o=>{o.preventDefault();const n=document.getElementById("poll-title").value,t=document.getElementById("poll-description").value,d=document.getElementById("poll-deadline").value,i=document.getElementById("poll-deadline-time").value,l=e.querySelectorAll('#poll-options-list input[type="text"]'),r=Array.from(l).map(e=>e.value.trim()).filter(Boolean).map(e=>({text:e,votes:0}));if(r.length<2)return alert("Inserisci almeno due opzioni.");if(!d||!i)return alert("Inserisci una data e un'ora di scadenza.");const c=`${d}T${i}`,s=new Date(c);try{await addDoc(collection(db,"polls"),{title:n,description:t,options:r,deadline:s,createdBy:userProfile.nome+" "+userProfile.cognome,createdById:currentUser.uid,createdAt:serverTimestamp(),voters:[]}),await logActivity("poll_created",currentUser.uid,`${userProfile.nome} ${userProfile.cognome}`,{title:n}),e.reset()}catch(p){console.error("Errore:",p)}}),e.addEventListener("reset",()=>{setTimeout(()=>{t.innerHTML="",n(),n()},0)})};
@@ -1800,6 +1861,7 @@
         const setupProfileHandlers=()=>{const e=document.getElementById("profile-form");e?.addEventListener("submit",async t=>{t.preventDefault();const o=document.getElementById("profile-nome").value,n=document.getElementById("profile-cognome").value,d=document.getElementById("profile-telefono").value;try{await updateDoc(doc(db,"users",currentUser.uid),{nome:o,cognome:n,telefono:d}),await loadUserProfile(currentUser),showProfileMessage("success","Profilo aggiornato!")}catch(m){showProfileMessage("error",`Errore: ${m.message}`)}})};
 
         const setupInfoUtiliHandlers = () => {
+            // Logica per l'inserimento manuale (si attiva solo nella pagina dei contatti manuali)
             const manualForm = document.getElementById('add-useful-number-form');
             if (manualForm) {
                 manualForm.addEventListener('submit', async (e) => {
@@ -1822,6 +1884,7 @@
                 });
             }
 
+            // Logica per l'importazione da file (si attiva solo nella pagina dei contatti importati)
             const triggerBtn = document.getElementById('trigger-phone-import-btn');
             const fileInput = document.getElementById('info-utili-phone-import-input');
             const messageBox = document.getElementById('info-utili-import-message');
@@ -1831,11 +1894,13 @@
                 fileInput.addEventListener('change', (event) => {
                     const file = event.target.files[0];
                     if (!file) return;
+
                     messageBox.className = 'message-box';
                     messageBox.textContent = 'Lettura del file in corso...';
                     messageBox.style.display = 'block';
                     triggerBtn.disabled = true;
                     triggerBtn.textContent = 'Caricamento...';
+
                     const reader = new FileReader();
                     reader.onload = async (e) => {
                         try {
@@ -1845,6 +1910,7 @@
                             const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
                             if (jsonData.length === 0) throw new Error("Il file Excel è vuoto o non valido.");
+
                             messageBox.textContent = 'Salvataggio dei dati...';
                             await addDoc(collection(db, "importedPhoneNumbers"), {
                                 fileName: file.name,
@@ -1862,7 +1928,7 @@
                             messageBox.className = 'message-box error';
                             messageBox.textContent = `Errore: ${err.message}`;
                         } finally {
-                            fileInput.value = '';
+                            fileInput.value = ''; // Resetta l'input per permettere di ricaricare lo stesso file
                             triggerBtn.disabled = false;
                             triggerBtn.textContent = 'Importa Nuovo File';
                         }
@@ -1876,15 +1942,21 @@
             if (!rules || rules.length === 0 || !tableData || tableData.length === 0) {
                 return tableData;
             }
+
             const headers = Object.keys(tableData[0]);
             const groupHeader = headers.find(h => h.toLowerCase() === 'raggruppamento');
-            if (!groupHeader) return tableData;
+            if (!groupHeader) return tableData; // Se non c'è la colonna, non fare nulla
+
+            // Ordina le regole per dare priorità a quelle più specifiche se necessario (opzionale, ma buona pratica)
+            // Per ora, l'ordine di Firestore (createdAt desc) è sufficiente.
 
             tableData.forEach((row, index) => {
-                const excelRowNumber = index + 2;
+                const excelRowNumber = index + 2; // L'indice 0 è la riga 2 di Excel (dopo l'header)
                 let classificationApplied = false;
+
                 for (const rule of rules) {
-                    if (classificationApplied) break;
+                    if (classificationApplied) break; // Applica solo la prima regola che corrisponde
+
                     let match = false;
                     if (rule.type === 'row_range_classification') {
                         if (excelRowNumber >= rule.params.startRow && excelRowNumber <= rule.params.endRow) {
@@ -1896,12 +1968,14 @@
                             match = true;
                         }
                     }
+
                     if (match) {
                         row[groupHeader] = rule.params.classification;
                         classificationApplied = true;
                     }
                 }
             });
+
             return tableData;
         };
 
@@ -1909,16 +1983,20 @@
             let partialCondosList = [];
             let activeRules = [];
 
+            // Funzione per caricare sia i gruppi che le regole attive
             const loadPrerequisites = async () => {
                 try {
                     const condosQuery = query(collection(db, "partialCondos"), orderBy("name"));
                     const rulesQuery = query(collection(db, "groupRules"), where("isActive", "==", true));
+                    
                     const [condosSnapshot, rulesSnapshot] = await Promise.all([
                         getDocs(condosQuery),
                         getDocs(rulesQuery)
                     ]);
+                    
                     partialCondosList = condosSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                     activeRules = rulesSnapshot.docs.map(doc => doc.data());
+
                 } catch (error) {
                     console.error("Errore nel caricamento di gruppi e regole:", error);
                     partialCondosList = [];
@@ -1926,10 +2004,13 @@
                 }
             };
 
+            // --- FUNZIONI HELPER COMUNI ---
             const generateTableHTML = (data, isPreview = false) => {
                 if (!data || data.length === 0) return '<p style="color:var(--secondary-text);">Nessun dato da visualizzare.</p>';
+
                 const groupOptionsHtml = `<option value="">Nessun Gruppo</option>` + partialCondosList.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
                 let tableHTML = `<table class="data-table" id="millesimi-preview-table">`;
+
                 const headers = Object.keys(data[0]);
                 tableHTML += '<thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
                 data.forEach(row => {
@@ -1945,15 +2026,17 @@
                     });
                     tableHTML += '</tr>';
                 });
+
                 return tableHTML + '</tbody></table>';
             };
 
             const convertArrayOfArraysToObjects = (data) => {
                 const headers = data[0].map(h => h.toString().trim());
+                // Aggiungi la colonna "raggruppamento" se non esiste
                 if (!headers.map(h => h.toLowerCase()).includes('raggruppamento')) {
                     headers.push('Raggruppamento');
                     for (let i = 1; i < data.length; i++) {
-                        data[i].push('');
+                        data[i].push(''); // Aggiunge una cella vuota
                     }
                 }
                 return data.slice(1).map(row => {
@@ -1965,6 +2048,7 @@
                 });
             };
 
+            // --- LOGICA PER IMPORTAZIONE MILLESIMI ---
             const fileInputMillesimi = document.getElementById('excel-file-input-millesimi');
             const tableContainerMillesimi = document.getElementById('excel-table-container-millesimi');
             const messageBoxMillesimi = document.getElementById('message-import-millesimi');
@@ -1978,7 +2062,10 @@
                 if (!snapshot.empty) {
                     const docData = snapshot.docs[0].data();
                     let data = docData.tableData;
+
+                    // Applica le regole di classificazione ai dati esistenti
                     data = applyClassificationRules(data, activeRules);
+
                     tableContainerMillesimi.innerHTML = generateTableHTML(data, true);
                     saveBtnContainerMillesimi.classList.remove('hidden');
                     millesimiFileName = docData.fileName || 'dati_esistenti.xlsx';
@@ -1993,6 +2080,7 @@
                 millesimiFileName = '';
                 saveBtnContainerMillesimi.classList.add('hidden'); messageBoxMillesimi.style.display = 'none';
                 if (!file) { loadLatestMillesimiData(); return; }
+                
                 millesimiFileName = file.name;
                 tableContainerMillesimi.innerHTML = '<p>Caricamento anteprima...</p>';
                 const reader = new FileReader();
@@ -2002,8 +2090,12 @@
                         const workbook = XLSX.read(data, { type: 'array' });
                         const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
                         if (jsonData.length < 2) throw new Error("Il file deve contenere almeno un'intestazione e una riga di dati.");
+
                         let dataAsObjects = convertArrayOfArraysToObjects(jsonData);
+                        
+                        // Applica le regole di classificazione ai dati appena caricati
                         dataAsObjects = applyClassificationRules(dataAsObjects, activeRules);
+                        
                         tableContainerMillesimi.innerHTML = generateTableHTML(dataAsObjects, true);
                         saveBtnContainerMillesimi.classList.remove('hidden');
                     } catch (err) {
@@ -2018,10 +2110,13 @@
             saveBtnMillesimi.addEventListener('click', async () => {
                 const previewTable = document.getElementById('millesimi-preview-table');
                 if (!previewTable) return;
+
                 saveBtnMillesimi.disabled = true; saveBtnMillesimi.textContent = 'Salvataggio...';
+                
                 try {
                     const headers = Array.from(previewTable.querySelectorAll('thead th')).map(th => th.textContent.trim());
                     const raggruppamentoIndex = headers.findIndex(h => h.toLowerCase() === 'raggruppamento');
+
                     const tableData = Array.from(previewTable.querySelectorAll('tbody tr')).map(tr => {
                         const rowObject = {};
                         Array.from(tr.cells).forEach((td, index) => {
@@ -2035,7 +2130,9 @@
                         });
                         return rowObject;
                     });
+
                     if (tableData.length === 0) throw new Error("Nessun dato da salvare.");
+
                     await addDoc(collection(db, "importedData"), {
                         fileName: millesimiFileName,
                         tableData: tableData,
@@ -2043,13 +2140,16 @@
                         uploadedAt: serverTimestamp()
                     });
                     await logActivity("data_imported", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { fileName: millesimiFileName });
+                    
                     fileInputMillesimi.value = '';
                     saveBtnContainerMillesimi.classList.add('hidden');
                     messageBoxMillesimi.className = 'message-box success';
                     messageBoxMillesimi.textContent = 'Dati salvati con successo!';
                     messageBoxMillesimi.style.display = 'block';
                     setTimeout(() => { messageBoxMillesimi.style.display = 'none'; }, 3000);
+                    
                     await loadLatestMillesimiData();
+
                 } catch (error) {
                     messageBoxMillesimi.className = 'message-box error';
                     messageBoxMillesimi.textContent = `Errore durante il salvataggio: ${error.message}`;
@@ -2059,6 +2159,7 @@
                 }
             });
 
+            // --- LOGICA PER IMPORTAZIONE NUMERI UTILI (invariata) ---
             const fileInputPhones = document.getElementById('excel-file-input-phones');
             const tableContainerPhones = document.getElementById('excel-table-container-phones');
             const messageBoxPhones = document.getElementById('message-import-phones');
@@ -2083,6 +2184,7 @@
                 phoneDataToSave = null; phoneFileNameForSave = '';
                 saveBtnContainerPhones.classList.add('hidden'); messageBoxPhones.style.display = 'none';
                 if (!file) { loadLatestPhoneData(); return; }
+
                 phoneFileNameForSave = file.name;
                 tableContainerPhones.innerHTML = '<p>Caricamento anteprima...</p>';
                 const reader = new FileReader();
@@ -2127,6 +2229,7 @@
                 }
             });
 
+            // Carica i dati iniziali
             await loadPrerequisites();
             await Promise.all([loadLatestMillesimiData(), loadLatestPhoneData()]);
         };
@@ -2138,6 +2241,7 @@
                 const nameInput = document.getElementById('partial-condo-name');
                 const name = nameInput.value.trim();
                 if (!name) return;
+
                 try {
                     await addDoc(collection(db, 'partialCondos'), {
                         name: name,
@@ -2156,6 +2260,7 @@
         const setupAdminUserCreationHandler = () => {
             const form = document.getElementById('admin-create-user-form');
             if (!form) return;
+
             form.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const email = document.getElementById('admin-email').value;
@@ -2164,21 +2269,27 @@
                     nome: document.getElementById('admin-nome').value,
                     cognome: document.getElementById('admin-cognome').value,
                     tipoUtente: document.getElementById('admin-tipo-utente').value,
-                    proprieta: [],
+                    proprieta: [], // Inizialmente vuoto, da modificare manualmente se necessario
                     telefono: document.getElementById('admin-telefono').value
                 };
+                
+                // Aggiungi proprietà se specificate
                 const appartamento = document.getElementById('admin-appartamento').value;
                 const millesimi = parseFloat(document.getElementById('admin-millesimi').value);
                 if (appartamento && !isNaN(millesimi)) {
                     profileData.proprieta.push({ interno: appartamento, millesimi: millesimi, gruppo: '' });
                 }
+
                 const messageBox = document.getElementById('admin-create-user-message');
                 messageBox.style.display = 'none';
+
                 try {
                     if (!profileData.nome || !profileData.cognome || !profileData.tipoUtente) {
                         throw new Error('Nome, Cognome e Tipo Utente sono obbligatori.');
                     }
+                    
                     await register(email, password, profileData);
+
                     messageBox.className = 'message-box success';
                     messageBox.textContent = `Utente ${email} creato con successo!`;
                     messageBox.style.display = 'block';
@@ -2194,6 +2305,7 @@
         const loadPartialCondos = () => {
             const listEl = document.getElementById('partial-condos-list');
             if (!listEl) return;
+
             const q = query(collection(db, "partialCondos"), orderBy("name"));
             onSnapshot(q, (snapshot) => {
                 if (snapshot.empty) {
@@ -2234,6 +2346,8 @@
             const list = document.getElementById('partial-condos-list');
             const chevron = document.getElementById('group-list-chevron');
             if (!list || !chevron) return;
+
+            // Toggle a class on the list container for smooth animations if added later
             const isHiding = list.style.display === 'none';
             if (isHiding) {
                 list.style.display = 'block';
@@ -2244,9 +2358,10 @@
             }
         };
 
+        // --- NUOVE FUNZIONI PER GESTIONE REGOLE GRUPPI (v2) ---
         let groupRulesUnsubscribe = null;
-        let partialCondosForRules = [];
-        let excelHeadersForRules = [];
+        let partialCondosForRules = []; // Cache per i gruppi
+        let excelHeadersForRules = []; // Cache per le intestazioni del file anagrafica
 
         const openRuleEditor = (rule = null) => {
             const card = document.getElementById('rule-editor-card');
@@ -2254,17 +2369,24 @@
             const title = document.getElementById('rule-editor-title');
             const classificationSelect = document.getElementById('rule-classification');
             const columnSelect = document.getElementById('rule-target-column');
+
+            // Popola il dropdown dei gruppi
             classificationSelect.innerHTML = '<option value="">Seleziona un gruppo...</option>' +
                 partialCondosForRules.map(condo => `<option value="${condo.name}">${condo.name}</option>`).join('') +
                 '<option value="__CREATE_NEW__" style="font-weight:bold; color:var(--accent-color);">++ Crea nuovo gruppo... ++</option>';
+
+            // Popola il dropdown delle colonne
             columnSelect.innerHTML = '<option value="">Seleziona colonna...</option>' +
                 excelHeadersForRules.map(header => `<option value="${header}">${header}</option>`).join('');
+
             if (rule) {
+                // Modalità modifica
                 title.textContent = 'Modifica Regola';
                 form.querySelector('#rule-id').value = rule.id;
                 form.querySelector('#rule-name').value = rule.name;
                 form.querySelector('#rule-type').value = rule.type;
                 classificationSelect.value = rule.params.classification;
+
                 if (rule.type === 'row_range_classification') {
                     form.querySelector('#rule-start-row').value = rule.params.startRow;
                     form.querySelector('#rule-end-row').value = rule.params.endRow;
@@ -2273,13 +2395,17 @@
                     form.querySelector('#rule-search-text').value = rule.params.searchText;
                 }
             } else {
+                // Modalità creazione
                 title.textContent = 'Crea Nuova Regola';
                 form.reset();
                 form.querySelector('#rule-id').value = '';
             }
+            
+            // Simula un evento 'change' per mostrare i campi corretti
             const event = new Event('change');
             form.querySelector('#rule-type').dispatchEvent(event);
             classificationSelect.dispatchEvent(event);
+
             card.classList.remove('hidden');
         };
 
@@ -2296,7 +2422,10 @@
             const ruleName = form.querySelector('#rule-name').value.trim();
             const ruleType = form.querySelector('#rule-type').value;
             let classification = form.querySelector('#rule-classification').value;
+
             if (!ruleName) { alert('Il nome della regola è obbligatorio.'); return; }
+
+            // Gestione creazione nuovo gruppo
             if (classification === '__CREATE_NEW__') {
                 const newGroupNameInput = form.querySelector('#rule-new-group-name');
                 const newGroupName = newGroupNameInput.value.trim();
@@ -2307,15 +2436,19 @@
                 }
                 try {
                     await addDoc(collection(db, 'partialCondos'), { name: newGroupName, createdBy: currentUser.uid, createdAt: serverTimestamp() });
-                    classification = newGroupName;
+                    classification = newGroupName; // Usa il nuovo nome per la regola
                 } catch (error) {
                     console.error("Errore nella creazione del gruppo:", error);
                     alert("Si è verificato un errore nella creazione del nuovo gruppo.");
                     return;
                 }
             }
+
             if (!classification) { alert('Seleziona un gruppo a cui assegnare la classificazione.'); return; }
+
             const ruleData = { name: ruleName, type: ruleType, params: {}, isActive: true, updatedAt: serverTimestamp() };
+
+            // Costruzione parametri in base al tipo di regola
             if (ruleType === 'row_range_classification') {
                 const startRow = parseInt(form.querySelector('#rule-start-row').value, 10);
                 const endRow = parseInt(form.querySelector('#rule-end-row').value, 10);
@@ -2328,6 +2461,7 @@
                 if (!targetColumn || !searchText) { alert('Specifica una colonna e un testo da cercare.'); return; }
                 ruleData.params = { targetColumn, searchText, classification };
             }
+
             try {
                 if (ruleId) {
                     await updateDoc(doc(db, 'groupRules', ruleId), ruleData);
@@ -2366,8 +2500,11 @@
         const loadGroupRules = () => {
             const listEl = document.getElementById('group-rules-list');
             if (!listEl) return;
+
+            // Carica in parallelo gruppi, regole e intestazioni excel
             const condosQuery = query(collection(db, "partialCondos"), orderBy("name"));
             const headersQuery = query(collection(db, "importedData"), orderBy("uploadedAt", "desc"), limit(1));
+            
             Promise.all([getDocs(condosQuery), getDocs(headersQuery)]).then(([condosSnapshot, headersSnapshot]) => {
                 partialCondosForRules = condosSnapshot.docs.map(d => d.data());
                 if (!headersSnapshot.empty) {
@@ -2377,8 +2514,10 @@
                     }
                 }
             });
+
             const rulesQuery = query(collection(db, 'groupRules'), orderBy('createdAt', 'desc'));
             if (groupRulesUnsubscribe) groupRulesUnsubscribe();
+
             groupRulesUnsubscribe = onSnapshot(rulesQuery, (snapshot) => {
                 if (snapshot.empty) {
                     listEl.innerHTML = `<div class="card"><p style="color:var(--secondary-text);">Nessuna regola di classificazione definita.</p></div>`;
@@ -2393,6 +2532,7 @@
                     } else if (rule.type === 'text_contains_classification') {
                         description = `Se colonna <strong>${params.targetColumn}</strong> contiene "<strong>${params.searchText}</strong>", assegna a gruppo <strong>${params.classification}</strong>.`;
                     }
+
                     return `
                     <div class="list-item" style="background-color: var(--surface-color); align-items: flex-start;">
                         <div class="list-item-content" style="padding-top: 0.5rem;">
@@ -2425,18 +2565,22 @@
             const ruleForm = document.getElementById('rule-editor-form');
             const ruleTypeSelect = document.getElementById('rule-type');
             const classificationSelect = document.getElementById('rule-classification');
+
             addNewRuleBtn?.addEventListener('click', () => openRuleEditor(null));
             cancelRuleBtn?.addEventListener('click', closeRuleEditor);
             ruleForm?.addEventListener('submit', saveGroupRule);
+
             ruleTypeSelect?.addEventListener('change', (e) => {
                 const paramsRowRange = document.getElementById('params-row-range');
                 const paramsTextContains = document.getElementById('params-text-contains');
                 const isRowRange = e.target.value === 'row_range_classification';
                 paramsRowRange.classList.toggle('hidden', !isRowRange);
                 paramsTextContains.classList.toggle('hidden', isRowRange);
+                // Rendi i campi required/not-required per una validazione HTML base
                 paramsRowRange.querySelectorAll('input').forEach(i => i.required = isRowRange);
                 paramsTextContains.querySelectorAll('input, select').forEach(i => i.required = !isRowRange);
             });
+
             classificationSelect?.addEventListener('change', (e) => {
                 const newGroupContainer = document.getElementById('new-group-container');
                 const isCreateNew = e.target.value === '__CREATE_NEW__';
@@ -2444,6 +2588,7 @@
                 newGroupContainer.querySelector('input').required = isCreateNew;
             });
         };
+        // --- FINE NUOVE FUNZIONI (v2) ---
 
         const deleteUsefulNumber = async (id) => {
             if (!confirm('Sei sicuro di voler eliminare questo numero?')) {
@@ -2504,6 +2649,7 @@
                 option2: ['supervisore', 'amministratore', 'consigliere', 'condomino'],
                 option3: ['supervisore', 'consigliere']
             };
+            // Default to option2 (most inclusive) if setting is invalid or not present
             const roles = allowedRoles[setting] || allowedRoles['option2'];
             return roles.includes(userType);
         };
@@ -2550,11 +2696,14 @@
         const loadPolls = () => {
             const container = document.getElementById("polls-container");
             if (!container) return;
+
+            // Logica per mostrare/nascondere il form di creazione sondaggio
             const creationCard = document.getElementById('create-poll-form')?.closest('.card');
             if (creationCard) {
-                creationCard.classList.add('hidden');
+                creationCard.classList.add('hidden'); // Nascondi di default per evitare sfarfallio
                 const creationSettingsRef = doc(db, "settings", "pollCreationAuthorization");
                 getDoc(creationSettingsRef).then(settingsSnap => {
+                    // Se non impostato, default a 'option1' (solo ruoli admin)
                     const creationSetting = settingsSnap.exists() ? settingsSnap.data().setting : 'option1'; 
                     const allowedRoles = {
                         option1: ['supervisore', 'amministratore', 'consigliere'],
@@ -2567,10 +2716,14 @@
                     }
                 });
             }
+
             const settingsRef = doc(db, "settings", "pollAuthorization");
+            
+            // Fetch settings una volta, poi ascolta gli aggiornamenti dei sondaggi
             getDoc(settingsRef).then(settingsSnap => {
                 const pollSetting = settingsSnap.exists() ? settingsSnap.data().setting : 'option2';
                 const canUserVote = isUserAllowedToVote(userProfile.tipoUtente, pollSetting);
+
                 const q = query(collection(db, "polls"), orderBy("createdAt", "desc"));
                 onSnapshot(q, snapshot => {
                     container.innerHTML = snapshot.empty ? `<p style="color:var(--secondary-text); padding: 1rem 0;">Nessun sondaggio.</p>` : snapshot.docs.map(docSnap => {
@@ -2580,8 +2733,10 @@
                         const isExpired = deadline < new Date();
                         const hasVoted = poll.voters && poll.voters.some(v => v.uid === currentUser.uid);
                         const totalVotes = poll.options.reduce((sum, opt) => sum + (opt.votes || 0), 0);
+                        
                         const showVoteButtons = !isExpired && !hasVoted && canUserVote;
                         const showVotersButton = isExpired ? `<button onclick="showPollVoters('${docSnap.id}')" class="btn btn-secondary w-full mt-4">Mostra Votanti</button>` : '';
+
                         return `
                         <div class="card" style="padding:1rem; margin-bottom:1rem;">
                             <div class="list-item" style="padding:0; margin-bottom:1rem; cursor:default;">
@@ -2670,6 +2825,8 @@
             const manualTableBody = document.getElementById('useful-numbers-table-body');
             const importedTableContainer = document.getElementById('imported-numbers-table-container');
             const canManage = ['amministratore', 'supervisore', 'adm'].includes(userProfile?.tipoUtente);
+
+            // Carica numeri inseriti manualmente
             if (manualTableBody) {
                 const qManual = query(collection(db, "usefulNumbers"), orderBy("createdAt", "desc"));
                 onSnapshot(qManual, (snapshot) => {
@@ -2684,6 +2841,8 @@
                     }).join('');
                 });
             }
+
+            // Carica numeri importati da file
             if (importedTableContainer) {
                 const qImported = query(collection(db, "importedPhoneNumbers"), orderBy("uploadedAt", "desc"), limit(1));
                 onSnapshot(qImported, (snapshot) => {
@@ -2718,6 +2877,7 @@
         const checkForNewCommunications=()=>{if(!currentUser||"custode"===userProfile?.tipoUtente)return;communicationsListener&&communicationsListener();const e=parseInt(localStorage.getItem(`lastSeenComm_${currentUser.uid}`),10)||0,t=new Date(e),o=query(collection(db,"communications"),where("createdAt",">",t));communicationsListener=onSnapshot(o,e=>{updateNotificationUI(!e.empty)})};
         
         window.navigateTo = navigateTo;
+        window.navigateBack = navigateBack; // Aggiunto per il pulsante indietro
         window.logout = logout;
         window.voteOnPoll = voteOnPoll;
         window.updateReportStatus = updateReportStatus;
@@ -2730,38 +2890,19 @@
         window.toggleRuleStatus = toggleRuleStatus;
         window.toggleGroupListVisibility = toggleGroupListVisibility;
 
-        // --- FUNZIONE onAuthStateChanged CORRETTA E ROBUSTA ---
         onAuthStateChanged(auth, async (user) => {
             if (user) {
-                // L'utente è loggato o si è appena loggato
                 currentUser = user;
                 await loadUserProfile(user);
-                
                 const userType = userProfile?.tipoUtente;
                 let landingPage = 'dashboard';
                 if (userType === 'custode') landingPage = 'segnalazioni';
-                
-                // Se l'utente si trova sulla pagina di login, lo reindirizziamo alla sua home.
-                // Altrimenti (se ha ricaricato la pagina), gli mostriamo la pagina su cui si trovava.
-                if (currentPage === 'login' || !currentPage) {
-                    navigateTo(landingPage);
-                } else {
-                    renderCurrentPage();
-                }
-
+                navigateTo(currentPage === 'login' || !currentPage ? landingPage : currentPage);
             } else {
-                // L'utente non è loggato o ha appena fatto logout
-                if (communicationsListener) {
-                    communicationsListener();
-                    communicationsListener = null;
-                }
+                if (communicationsListener) communicationsListener();
                 currentUser = null; 
                 userProfile = null;
-                // Resetta lo stato specifico della registrazione per evitare dati "sporchi"
-                groupedProperties = {};
-                partialCondosList = [];
-                
-                // Naviga alla pagina di login in modo pulito
+                navigationHistory = []; // Azzeriamo la cronologia qui, nel punto più sicuro.
                 navigateTo('login');
             }
         });
