@@ -1,9 +1,18 @@
+
 <!DOCTYPE html>
 <html lang="it">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Con-bridge</title>
+
+    <!-- FIXED SCRIPT LOADING START -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- FIXED SCRIPT LOADING END -->
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -62,6 +71,21 @@
             gap: 1rem;
             margin-bottom: 2rem;
             padding: 1rem 0;
+        }
+        .back-btn {
+            background: none;
+            border: none;
+            color: var(--primary-text);
+            cursor: pointer;
+            padding: 0.5rem;
+            margin-left: -0.5rem; /* Compensa il padding per un migliore allineamento visivo */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+        }
+        .back-btn:active {
+            background-color: rgba(255,255,255,0.1);
         }
         .user-avatar {
             width: 40px;
@@ -543,7 +567,6 @@
             border-bottom: 1px solid var(--surface-color);
         }
     </style>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
     <div id="app"></div>
@@ -558,11 +581,12 @@
         </div>
     </div>
 
-    <script type="module">
-        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-        import { getFirestore, doc, setDoc, getDoc, collection, addDoc, query, orderBy, limit, onSnapshot, serverTimestamp, updateDoc, where, getDocs, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+    <script>
+        // REMOVED type="module" from the script tag
+        
+        // REMOVED all import statements
 
+        // NEW: Correct initialization using the global `firebase` object
         const firebaseConfig = {
             apiKey: "AIzaSyCrLAomryfk-0s5Inm2XOsBrJusgmMI87E",
             authDomain: "condo-app-49255.firebaseapp.com",
@@ -572,13 +596,23 @@
             appId: "1:485319278595:web:2997689b234fbba4dece36",
             measurementId: "G-2SM3DH41EZ"
         };
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
+        
+        firebase.initializeApp(firebaseConfig);
+
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // For convenience, we create constants for the functions we need.
+        // This means the rest of the code doesn't need to be changed.
+        const { serverTimestamp } = firebase.firestore.FieldValue;
+        const { collection, query, orderBy, limit, onSnapshot, where, getDocs, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc } = firebase.firestore;
+        const { onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, sendPasswordResetEmail } = firebase.auth;
+        // END OF NEW INITIALIZATION
 
         let currentUser = null;
         let userProfile = null;
         let currentPage = 'login';
+        let navigationHistory = []; // Aggiunto per la cronologia di navigazione
         let communicationsListener = null;
 
         // Stato per la registrazione, reso globale a livello di modulo per un reset corretto
@@ -615,29 +649,44 @@
         const login=async(t,e)=>await signInWithEmailAndPassword(auth,t,e);
         const logout=async()=>{
             communicationsListener&&(communicationsListener(),communicationsListener=null);
+            // Non è più necessario azzerare manualmente lo stato qui,
+            // perché onAuthStateChanged lo farà in modo affidabile.
+            // La chiamata a navigateTo('login') viene rimossa perché gestita da onAuthStateChanged.
             await signOut(auth);
-            currentUser=null;
-            userProfile=null;
-            // Reset esplicito dello stato di registrazione
-            groupedProperties = {};
-            partialCondosList = [];
-            navigateTo("login");
         };
         const resetPassword=async t=>await sendPasswordResetEmail(auth,t);
         const loadUserProfile=async t=>{if(t){const e=await getDoc(doc(db,"users",t.uid));e.exists()&&(userProfile=e.data())}};
         
-        const navigateTo=(e)=>{
+        const navigateBack = () => {
+            if (navigationHistory.length > 0) {
+                const previousPage = navigationHistory.pop();
+                // Il secondo parametro 'true' indica che è una navigazione "indietro"
+                navigateTo(previousPage, true);
+            }
+        };
+
+        const navigateTo = (newPage, isBackNavigation = false) => {
             const userType = userProfile?.tipoUtente;
-            if (['supervisore', 'adm'].includes(userType) && ['userManagement', 'gestioneGruppi', 'importazione'].includes(e)) {
-                 currentPage = e;
-                 renderCurrentPage();
-                 return;
+
+            // Gestione del reindirizzamento per il custode
+            if (userType === "custode" && ["dashboard", "bacheca", "sondaggi"].includes(newPage)) {
+                navigateTo("segnalazioni", isBackNavigation);
+                return;
             }
-            if(userType==="custode"&&["dashboard","bacheca","sondaggi"].includes(e)){
-                navigateTo("segnalazioni");
-            } else {
-                currentPage=e,renderCurrentPage();
+
+            // Se la pagina non cambia, non fare nulla per evitare di sporcare la cronologia
+            if (newPage === currentPage) {
+                return;
             }
+
+            // Aggiungi la pagina corrente alla cronologia solo se si sta navigando "in avanti"
+            if (!isBackNavigation) {
+                navigationHistory.push(currentPage);
+            }
+
+            // Imposta la nuova pagina e la renderizza
+            currentPage = newPage;
+            renderCurrentPage();
         };
         
         const getPriorityColor=t=>({alta:"priority-alta",media:"priority-media",bassa:"priority-bassa"}[t]||"priority-bassa");
@@ -646,8 +695,17 @@
         const renderHeader = (title) => {
             const userInitial = userProfile?.nome ? userProfile.nome.charAt(0).toUpperCase() : 'U';
             const userType = userProfile?.tipoUtente || '';
+            const backButtonHtml = navigationHistory.length > 0 ? `
+                <button onclick="navigateBack()" class="back-btn" aria-label="Torna indietro">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width: 28px; height: 28px;">
+                        <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+                    </svg>
+                </button>
+            ` : '';
+
             return `
             <header class="page-header">
+                ${backButtonHtml}
                 <div class="user-avatar">${userInitial}</div>
                 <div>
                     <h1 class="page-title">${title}</h1>
@@ -757,23 +815,15 @@
         
         const renderDashboard = () => {
             let extraItems = '';
-            if (['supervisore', 'adm'].includes(userProfile?.tipoUtente)) {
-                                extraItems = `
-                    <div onclick="navigateTo('userManagement')" class="dashboard-item">
-                        <div class="dashboard-card"><svg fill="currentColor" viewBox="0 0 24 24"><path d="M16 17v-2c0-1.1-.9-2-2-2H9c-1.1 0-2 .9-2 2v2H5v-2c0-2.21 1.79-4 4-4h2c2.21 0 4 1.79 4 4v2h-2zm-4-8c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/></svg></div>
-                        <p>Gestione Utenti</p>
-                    </div>
+                        if (['supervisore', 'adm'].includes(userProfile?.tipoUtente)) {
+                extraItems = `
                     <div onclick="navigateTo('gestioneGruppi')" class="dashboard-item">
-                        <div class="dashboard-card"><svg fill="currentColor" viewBox="0 0 24 24"><path d="M10 4v4h4V4h-4m6 12v4h4v-4h-4m-6 0v4h4v-4h-4m6-6v4h4v-4h-4m-6 0v4h4v-4h-4m-6-6v4h4V4H4m6 6v4h4v-4h-4M4 16v4h4v-4H4m14-2h2v-4h-2v4m0 6h2v-4h-2v4m-12-2h2v-4H6v4m0 6h2v-4H6v4M2 2v20h20V2H2z"/></svg></div>
-                        <p>Gestione Gruppi</p>
-                    </div>
-                     <div onclick="navigateTo('importazione')" class="dashboard-item">
-                        <div class="dashboard-card"><svg fill="currentColor" viewBox="0 0 24 24"><path d="M5,17.59L15.59,7H9V5H19V15H17V8.41L6.41,19L5,17.59Z"/></svg></div>
-                        <p>Importa Dati</p>
-                    </div>
-                    <div onclick="navigateTo('impostazioniSondaggi')" class="dashboard-item">
-                        <div class="dashboard-card"><svg fill="currentColor" viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17-.59-1.69-.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg></div>
-                        <p>Impostazioni sondaggi</p>
+                        <div class="dashboard-card">
+                            <svg fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61-.25-1.17-.59-1.69-.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19-.15-.24-.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/>
+                            </svg>
+                        </div>
+                        <p>Funzioni Supervisor</p>
                     </div>
                 `;
             }
@@ -824,7 +874,7 @@
         const renderSondaggi = () => `
             ${renderHeader('Sondaggi')}
             <main>
-                ${(userProfile?.tipoUtente === 'amministratore' || userProfile?.tipoUtente === 'supervisore') ? `<div class="card" style="margin-bottom:2rem;">
+                <div class="card" style="margin-bottom:2rem;">
                     <h3 class="card-title">Crea un Nuovo Sondaggio</h3>
                     <form id="create-poll-form" class="space-y-4">
                         <div><label class="form-label">Titolo</label><input type="text" id="poll-title" required class="form-input"></div>
@@ -836,7 +886,7 @@
                         </div>
                         <div class="flex justify-end gap-4 pt-4"><button type="reset" class="btn btn-secondary">Annulla</button><button type="submit" class="btn btn-primary">Crea</button></div>
                     </form>
-                </div>` : ''}
+                </div>
                 <div id="polls-container" class="list-container"></div>
             </main>
             ${renderBottomNavigation()}
@@ -1236,24 +1286,102 @@
             ${renderBottomNavigation()}
         `;
         
-        const renderGestioneGruppi = () => `
-            ${renderHeader('Gestione Gruppi')}
+                const renderGestioneGruppiMenu = () => `
+            ${renderHeader('Funzioni Supervisor')}
+            <main>
+                <div class="dashboard-grid" style="grid-template-columns: 1fr;">
+                    <div onclick="navigateTo('userManagement')" class="dashboard-item">
+                        <div class="dashboard-card" style="aspect-ratio: auto; padding: 1.5rem; flex-direction: row; justify-content: flex-start; gap: 1.5rem;">
+                            <svg fill="currentColor" viewBox="0 0 24 24" style="width: 32px; height: 32px; flex-shrink: 0;"><path d="M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4Z"/></svg>
+                            <p style="text-align: left; font-size: 1.1rem;">Gestione Utenti</p>
+                        </div>
+                    </div>
+                    <div onclick="navigateTo('gestioneGruppi_lista')" class="dashboard-item">
+                        <div class="dashboard-card" style="aspect-ratio: auto; padding: 1.5rem; flex-direction: row; justify-content: flex-start; gap: 1.5rem;">
+                            <svg fill="currentColor" viewBox="0 0 24 24" style="width: 32px; height: 32px; flex-shrink: 0;"><path d="M10 4v4h4V4h-4m6 12v4h4v-4h-4m-6 0v4h4v-4h-4m6-6v4h4v-4h-4m-6 0v4h4v-4h-4m-6-6v4h4V4H4m6 6v4h4v-4h-4M4 16v4h4v-4H4m14-2h2v-4h-2v4m0 6h2v-4h-2v4m-12-2h2v-4H6v4m0 6h2v-4H6v4M2 2v20h20V2H2z"/></svg>
+                            <p style="text-align: left; font-size: 1.1rem;">Crea e Visualizza Gruppi</p>
+                        </div>
+                    </div>
+                    <div onclick="navigateTo('gestioneGruppi_regole')" class="dashboard-item">
+                        <div class="dashboard-card" style="aspect-ratio: auto; padding: 1.5rem; flex-direction: row; justify-content: flex-start; gap: 1.5rem;">
+                            <svg fill="currentColor" viewBox="0 0 24 24" style="width: 32px; height: 32px; flex-shrink: 0;"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61-.25-1.17-.59-1.69-.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24-.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg>
+                            <p style="text-align: left; font-size: 1.1rem;">Gestione Regole</p>
+                        </div>
+                    </div>
+                    <div onclick="navigateTo('importazione')" class="dashboard-item">
+                        <div class="dashboard-card" style="aspect-ratio: auto; padding: 1.5rem; flex-direction: row; justify-content: flex-start; gap: 1.5rem;">
+                            <svg fill="currentColor" viewBox="0 0 24 24" style="width: 32px; height: 32px; flex-shrink: 0;"><path d="M9,16V10H5L12,3L19,10H15V16H9M5,20V18H19V20H5Z"/></svg>
+                            <p style="text-align: left; font-size: 1.1rem;">Importa Dati</p>
+                        </div>
+                    </div>
+                    <div onclick="navigateTo('impostazioniSondaggi')" class="dashboard-item">
+                        <div class="dashboard-card" style="aspect-ratio: auto; padding: 1.5rem; flex-direction: row; justify-content: flex-start; gap: 1.5rem;">
+                            <svg fill="currentColor" viewBox="0 0 24 24" style="width: 32px; height: 32px; flex-shrink: 0;"><path d="M3,5H9V11H3V5M5,7V9H7V7H5M11,7H21V9H11V7M11,15H21V17H11V15M5,15H7V17H5V15M3,13H9V19H3V13Z" /></svg>
+                            <p style="text-align: left; font-size: 1.1rem;">Gestione Sondaggi</p>
+                        </div>
+                    </div>
+                </div>
+            </main>
+            ${renderBottomNavigation()}
+        `;
+
+        const renderGestioneGruppi_Lista = () => `
+            ${renderHeader('Crea e Visualizza Gruppi')}
             <main>
                 <div class="card" style="margin-bottom:2rem;">
-                    <h3 class="card-title">Crea Condominio Parziale</h3>
+                    <h3 class="card-title">Crea Gruppo Manualmente</h3>
                     <form id="create-partial-condo-form" class="flex gap-4">
                         <div class="form-group" style="flex-grow:1; margin-bottom:0;">
-                            <label for="partial-condo-name" class="form-label hidden">Nome Gruppo</label>
-                            <input type="text" id="partial-condo-name" required class="form-input" placeholder="Es. Scala A, Box, Giardino...">
+                            <input type="text" id="partial-condo-name" required class="form-input" placeholder="Es. Scala Bellini 11, Box, Giardino...">
                         </div>
-                        <button type="submit" class="btn btn-primary">Crea</button>
+                        <button type="submit" class="btn btn-primary">Crea Gruppo</button>
                     </form>
                 </div>
 
-                <h2 class="section-title">Elenco Condomini Parziali</h2>
-                <div id="partial-condos-list" class="list-container">
-                    <p>Caricamento...</p>
+                <div class="card" style="margin-bottom: 2.5rem;">
+                    <div 
+                        id="toggle-group-list-btn" 
+                        onclick="toggleGroupListVisibility()" 
+                        class="flex items-center justify-between" 
+                        style="cursor: pointer; padding-bottom: 1rem; border-bottom: 1px solid var(--surface-color-light);"
+                    >
+                        <h3 class="card-title" style="margin-bottom: 0;">Elenco Gruppi Creati</h3>
+                        <svg id="group-list-chevron" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width: 24px; height: 24px; transition: transform 0.3s ease;">
+                            <path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/>
+                        </svg>
+                    </div>
+                    <div id="partial-condos-list" class="list-container" style="padding-top: 1rem;">
+                        <p>Caricamento...</p>
+                    </div>
                 </div>
+            </main>
+            ${renderBottomNavigation()}
+        `;
+
+        const renderGestioneGruppi_Regole = () => `
+            ${renderHeader('Gestione Regole')}
+            <main>
+                <div class="flex items-center justify-between" style="margin-bottom: 1rem;">
+                    <h2 class="section-title" style="margin-bottom: 0;">Regole di Classificazione</h2>
+                    <button id="add-new-rule-btn" class="btn btn-secondary" style="padding: 0.6rem 1rem; font-size: 0.9rem;">+ Nuova Regola</button>
+                </div>
+                <div id="rule-editor-card" class="card hidden" style="margin-bottom: 2rem; background-color: var(--surface-color-light);">
+                    <form id="rule-editor-form">
+                        <input type="hidden" id="rule-id">
+                        <h3 id="rule-editor-title" class="card-title">Crea Nuova Regola</h3>
+                        <div class="space-y-4">
+                            <div class="form-group"><label for="rule-name" class="form-label">Nome Regola</label><input type="text" id="rule-name" class="form-input" required placeholder="Es. Assegnazione automatica Box"></div>
+                            <div class="form-group"><label for="rule-type" class="form-label">Tipo di Condizione</label><select id="rule-type" class="form-select" required><option value="row_range_classification">Intervallo di Righe</option><option value="text_contains_classification">Testo Contiene</option></select></div>
+                            <div id="params-row-range" class="space-y-4"><div class="grid grid-cols-2 gap-4"><div class="form-group"><label for="rule-start-row" class="form-label">Da Riga (inclusa)</label><input type="number" id="rule-start-row" class="form-input" min="1"></div><div class="form-group"><label for="rule-end-row" class="form-label">A Riga (inclusa)</label><input type="number" id="rule-end-row" class="form-input" min="1"></div></div></div>
+                            <div id="params-text-contains" class="hidden space-y-4"><div class="form-group"><label for="rule-target-column" class="form-label">Nella Colonna</label><select id="rule-target-column" class="form-select"><option value="">Caricamento colonne...</option></select></div><div class="form-group"><label for="rule-search-text" class="form-label">Testo da Cercare</label><input type="text" id="rule-search-text" class="form-input" placeholder="Es. BOX, Giardino"></div></div>
+                            <hr style="border-color: var(--surface-color); margin: 1rem 0;">
+                            <div class="form-group"><label for="rule-classification" class="form-label">Azione: Assegna al Gruppo</label><select id="rule-classification" class="form-select" required><option value="">Caricamento gruppi...</option></select></div>
+                            <div id="new-group-container" class="form-group hidden" style="margin-top: 0.5rem;"><label for="rule-new-group-name" class="form-label">Nome Nuovo Gruppo</label><input type="text" id="rule-new-group-name" class="form-input" placeholder="Digita il nome del nuovo gruppo"></div>
+                        </div>
+                        <div class="flex justify-end gap-4 mt-4"><button type="button" id="cancel-rule-edit-btn" class="btn btn-secondary">Annulla</button><button type="submit" class="btn btn-primary">Salva Regola</button></div>
+                    </form>
+                </div>
+                <div id="group-rules-list" class="list-container"><p>Caricamento regole...</p></div>
             </main>
             ${renderBottomNavigation()}
         `;
@@ -1312,7 +1440,7 @@
             ${renderHeader('Impostazione Sondaggi')}
             <main>
                 <div class="card">
-                    <h3 class="card-title">Chi può votare nei sondaggi?</h3>
+                    <h3 class="card-title">Chi può creare sondaggi</h3>
                     <div id="poll-settings-message" class="message-box"></div>
                     <form id="poll-settings-form" class="space-y-4">
                         <div class="form-group">
@@ -1347,7 +1475,7 @@
             if (!form) return;
 
             const messageBox = document.getElementById('poll-settings-message');
-            const settingsRef = doc(db, "settings", "pollAuthorization");
+            const settingsRef = doc(db, "settings", "pollCreationAuthorization");
 
             // Load current setting
             try {
@@ -1422,7 +1550,15 @@
                     else navigateTo('dashboard');
                     break;
                 case 'gestioneGruppi':
-                    if (['supervisore', 'adm'].includes(userType)) content = renderGestioneGruppi();
+                    if (['supervisore', 'adm'].includes(userType)) content = renderGestioneGruppiMenu();
+                    else navigateTo('dashboard');
+                    break;
+                case 'gestioneGruppi_lista':
+                    if (['supervisore', 'adm'].includes(userType)) content = renderGestioneGruppi_Lista();
+                    else navigateTo('dashboard');
+                    break;
+                case 'gestioneGruppi_regole':
+                    if (['supervisore', 'adm'].includes(userType)) content = renderGestioneGruppi_Regole();
                     else navigateTo('dashboard');
                     break;
                 case 'importazione':
@@ -1457,7 +1593,9 @@ switch (currentPage) {
                     setupInfoUtiliHandlers(); 
                     break;
                 case 'userManagement': if (['supervisore', 'adm'].includes(userType)) { loadUsers(); setupAdminUserCreationHandler(); } break;
-                case 'gestioneGruppi': if (['supervisore', 'adm'].includes(userType)) { loadPartialCondos(); setupUserManagementHandlers(); } break;
+                case 'gestioneGruppi': /* No handlers needed for the menu page */ break;
+                case 'gestioneGruppi_lista': if (['supervisore', 'adm'].includes(userType)) { loadPartialCondos(); setupUserManagementHandlers(); } break;
+                case 'gestioneGruppi_regole': if (['supervisore', 'adm'].includes(userType)) { loadGroupRules(); setupGestioneGruppiHandlers(); } break;
                 case 'importazione': if (['supervisore', 'adm'].includes(userType)) { setupImportazioneHandlers(); } break;
                 case 'impostazioniSondaggi': if (['supervisore', 'adm'].includes(userType)) { setupImpostazioniSondaggiHandlers(); } break;
             }
@@ -1697,7 +1835,25 @@ switch (currentPage) {
                         propertyItemsContainer.innerHTML = '';
                         propertySelectionWrapper.classList.add('hidden');
                         summaryEl.innerHTML = 'Seleziona un nominativo per continuare...';
-                    } else { await login(o, n); }
+                    } else {
+                        await login(o, n);
+                        // FIX: Non affidarsi più passivamente a onAuthStateChanged per la navigazione post-login.
+                        // Dopo un login andato a buon fine, prendiamo il controllo diretto del flusso.
+                        // 1. Aggiorniamo il nostro stato globale con l'utente corrente.
+                        currentUser = auth.currentUser;
+                        if (currentUser) {
+                            // 2. Carichiamo il suo profilo.
+                            await loadUserProfile(currentUser);
+                            // 3. Navighiamo alla pagina corretta.
+                            const userType = userProfile?.tipoUtente;
+                            let landingPage = 'dashboard';
+                            if (userType === 'custode') landingPage = 'segnalazioni';
+                            navigateTo(landingPage);
+                        } else {
+                            // Caso di sicurezza, anche se non dovrebbe mai accadere dopo un login riuscito.
+                            throw new Error("Login fallito, utente non trovato.");
+                        }
+                    }
                 } catch (p) { d.textContent = p.message; d.style.display = "block"; }
             });
             
@@ -1800,64 +1956,125 @@ switch (currentPage) {
             }
         };
 
+        const applyClassificationRules = (tableData, rules) => {
+            if (!rules || rules.length === 0 || !tableData || tableData.length === 0) {
+                return tableData;
+            }
+
+            const headers = Object.keys(tableData[0]);
+            const groupHeader = headers.find(h => h.toLowerCase() === 'raggruppamento');
+            if (!groupHeader) return tableData; // Se non c'è la colonna, non fare nulla
+
+            // Ordina le regole per dare priorità a quelle più specifiche se necessario (opzionale, ma buona pratica)
+            // Per ora, l'ordine di Firestore (createdAt desc) è sufficiente.
+
+            tableData.forEach((row, index) => {
+                const excelRowNumber = index + 2; // L'indice 0 è la riga 2 di Excel (dopo l'header)
+                let classificationApplied = false;
+
+                for (const rule of rules) {
+                    if (classificationApplied) break; // Applica solo la prima regola che corrisponde
+
+                    let match = false;
+                    if (rule.type === 'row_range_classification') {
+                        if (excelRowNumber >= rule.params.startRow && excelRowNumber <= rule.params.endRow) {
+                            match = true;
+                        }
+                    } else if (rule.type === 'text_contains_classification') {
+                        const cellValue = row[rule.params.targetColumn] || '';
+                        if (cellValue.toString().toLowerCase().includes(rule.params.searchText.toLowerCase())) {
+                            match = true;
+                        }
+                    }
+
+                    if (match) {
+                        row[groupHeader] = rule.params.classification;
+                        classificationApplied = true;
+                    }
+                }
+            });
+
+            return tableData;
+        };
+
         const setupImportazioneHandlers = async () => {
             let partialCondosList = [];
+            let activeRules = [];
 
-            const loadPartialCondosForImport = async () => {
+            // Funzione per caricare sia i gruppi che le regole attive
+            const loadPrerequisites = async () => {
                 try {
-                    const q = query(collection(db, "partialCondos"), orderBy("name"));
-                    const querySnapshot = await getDocs(q);
-                    partialCondosList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    const condosQuery = query(collection(db, "partialCondos"), orderBy("name"));
+                    const rulesQuery = query(collection(db, "groupRules"), where("isActive", "==", true));
+                    
+                    const [condosSnapshot, rulesSnapshot] = await Promise.all([
+                        getDocs(condosQuery),
+                        getDocs(rulesQuery)
+                    ]);
+                    
+                    partialCondosList = condosSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    activeRules = rulesSnapshot.docs.map(doc => doc.data());
+
                 } catch (error) {
-                    console.error("Errore nel caricamento dei gruppi per l'importazione:", error);
+                    console.error("Errore nel caricamento di gruppi e regole:", error);
                     partialCondosList = [];
+                    activeRules = [];
                 }
             };
 
-            const getAutomaticGroupForImport = (interno) => {
-                if (!interno || partialCondosList.length === 0) return '';
-                const lowerInterno = interno.toString().toLowerCase().trim();
-
-                // --- Regola 1: Box (la più distinta, ha la priorità) ---
-                if (/\be\b|\be-/.test(lowerInterno)) {
-                    const boxCondo = partialCondosList.find(c => c.name.toLowerCase() === 'box');
-                    if (boxCondo) return boxCondo.name;
+            // --- NUOVA FUNZIONE PER RAGGRUPPAMENTO AUTOMATICO (v2 - Corretta) ---
+            const applyAutomaticGrouping = (tableData, partialCondos) => {
+                if (!tableData || tableData.length === 0 || !partialCondos || partialCondos.length === 0) {
+                    return tableData;
                 }
 
-                // --- Regola 2: Pattern "Lettera + Numero" per Mascagni e Bellini ---
-                // Cerca una 'm' o 'b' seguita da una o più cifre. Es: "M15", "b13", "ES M13"
-                const patternMatch = lowerInterno.match(/([mb])(\d+)/);
-                if (patternMatch) {
-                    const letter = patternMatch[1]; // 'm' o 'b'
-                    const number = patternMatch[2]; // es. "13", "15"
+                const headers = Object.keys(tableData[0]);
+                const findHeader = (keywords) => headers.find(h => keywords.map(k => k.toLowerCase()).includes(h.toLowerCase()));
+
+                const apartmentHeader = findHeader(['interno', 'appartamento', 'unita']);
+                const groupHeader = findHeader(['raggruppamento']);
+
+                if (!apartmentHeader || !groupHeader) {
+                    console.warn("Intestazioni 'interno' o 'raggruppamento' non trovate. Salto il raggruppamento automatico.");
+                    return tableData;
+                }
+
+                const sortedCondos = [...partialCondos].sort((a, b) => b.name.length - a.name.length);
+
+                tableData.forEach(row => {
+                    // Assegna il gruppo solo se non è già stato impostato
+                    if (row[groupHeader]) {
+                        return; // Salta questa riga se ha già un gruppo
+                    }
+
+                    const interno = row[apartmentHeader] ? row[apartmentHeader].toString().toLowerCase() : '';
+                    if (!interno) return;
+
+                    let foundGroup = '';
+
+                    // Logica di assegnazione con priorità, simile alla registrazione
+                    if (/\be\b|\be-/.test(interno)) {
+                        const boxCondo = partialCondos.find(c => c.name.toLowerCase() === 'box');
+                        if (boxCondo) foundGroup = boxCondo.name;
+                    } 
+                    else if (interno.includes('b11')) {
+                        const b11Condo = partialCondos.find(c => c.name.toLowerCase().includes('bellini 11'));
+                        if (b11Condo) foundGroup = b11Condo.name;
+                    } 
+                    else {
+                        // Se nessuna regola specifica corrisponde, esegui la ricerca generale
+                        for (const condo of sortedCondos) {
+                            if (interno.includes(condo.name.toLowerCase())) {
+                                foundGroup = condo.name;
+                                break; // Trovato il gruppo più lungo corrispondente, esci dal ciclo
+                            }
+                        }
+                    }
                     
-                    const buildingName = letter === 'm' ? 'Mascagni' : 'Bellini';
-                    const targetGroupName = `Scala ${buildingName} ${number}`;
+                    row[groupHeader] = foundGroup;
+                });
 
-                    // Cerca una corrispondenza esatta del nome del gruppo costruito
-                    const foundCondo = partialCondosList.find(c => c.name.toLowerCase() === targetGroupName.toLowerCase());
-                    if (foundCondo) {
-                        return foundCondo.name;
-                    }
-                }
-
-                // --- Regola 3: Fallback generico per altre corrispondenze (es. "Giardino") ---
-                // Utile per gruppi che non seguono il pattern Lettera+Numero
-                const sortedCondos = [...partialCondosList].sort((a, b) => b.name.length - a.name.length);
-                for (const condo of sortedCondos) {
-                    // Per sicurezza, evitiamo di ricontrollare i gruppi già gestiti dai pattern
-                    if (condo.name.toLowerCase().startsWith('scala mascagni') || 
-                        condo.name.toLowerCase().startsWith('scala bellini') ||
-                        condo.name.toLowerCase() === 'box') {
-                        continue;
-                    }
-                    
-                    if (lowerInterno.includes(condo.name.toLowerCase())) {
-                        return condo.name;
-                    }
-                }
-
-                return ''; // Nessun gruppo trovato
+                return tableData;
             };
 
             // --- FUNZIONI HELPER COMUNI ---
@@ -1867,54 +2084,34 @@ switch (currentPage) {
                 const groupOptionsHtml = `<option value="">Nessun Gruppo</option>` + partialCondosList.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
                 let tableHTML = `<table class="data-table" id="millesimi-preview-table">`;
 
-                // Gestione dati da file (array di array)
-                if (Array.isArray(data[0])) {
-                    const headers = data[0];
-                    const lowerCaseHeaders = headers.map(h => h.toString().toLowerCase());
-                    const internoIndex = lowerCaseHeaders.findIndex(h => ['interno', 'appartamento', 'unita'].includes(h));
-                    const raggruppamentoIndex = lowerCaseHeaders.findIndex(h => h === 'raggruppamento');
-
-                    tableHTML += '<thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
-                    for (let i = 1; i < data.length; i++) {
-                        tableHTML += '<tr>';
-                        headers.forEach((header, colIndex) => {
-                            const cellValue = data[i][colIndex] !== undefined ? data[i][colIndex] : '';
-                            if (isPreview && colIndex === raggruppamentoIndex) {
-                                // Ora 'cellValue' contiene già il gruppo corretto, calcolato in precedenza
-                                const selectedGroupOptions = groupOptionsHtml.replace(`value="${cellValue}"`, `value="${cellValue}" selected`);
-                                tableHTML += `<td><select class="form-select" style="padding: 0.4rem 0.6rem; font-size: 0.9rem;">${selectedGroupOptions}</select></td>`;
-                            } else {
-                                tableHTML += `<td>${cellValue}</td>`;
-                            }
-                        });
-                        tableHTML += '</tr>';
-                    }
-                // Gestione dati da Firestore (array di oggetti)
-                } else if (typeof data[0] === 'object') {
-                    const headers = Object.keys(data[0]);
-                    tableHTML += '<thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
-                    data.forEach(row => {
-                        tableHTML += '<tr>';
-                        headers.forEach(header => {
-                            const cellValue = row[header] !== undefined ? row[header] : '';
-                            if (isPreview && header.toLowerCase() === 'raggruppamento') {
-                                const selectedGroupOptions = groupOptionsHtml.replace(`value="${cellValue}"`, `value="${cellValue}" selected`);
-                                tableHTML += `<td><select class="form-select" style="padding: 0.4rem 0.6rem; font-size: 0.9rem;">${selectedGroupOptions}</select></td>`;
-                            } else {
-                                tableHTML += `<td>${cellValue}</td>`;
-                            }
-                        });
-                        tableHTML += '</tr>';
+                const headers = Object.keys(data[0]);
+                tableHTML += '<thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
+                data.forEach(row => {
+                    tableHTML += '<tr>';
+                    headers.forEach(header => {
+                        const cellValue = row[header] !== undefined ? row[header] : '';
+                        if (isPreview && header.toLowerCase() === 'raggruppamento') {
+                            const selectedGroupOptions = groupOptionsHtml.replace(`value="${cellValue}"`, `value="${cellValue}" selected`);
+                            tableHTML += `<td><select class="form-select" style="padding: 0.4rem 0.6rem; font-size: 0.9rem;">${selectedGroupOptions}</select></td>`;
+                        } else {
+                            tableHTML += `<td>${cellValue}</td>`;
+                        }
                     });
-                } else {
-                    return '<p style="color:var(--secondary-text);">Formato dati non riconosciuto.</p>';
-                }
+                    tableHTML += '</tr>';
+                });
 
                 return tableHTML + '</tbody></table>';
             };
 
             const convertArrayOfArraysToObjects = (data) => {
                 const headers = data[0].map(h => h.toString().trim());
+                // Aggiungi la colonna "raggruppamento" se non esiste
+                if (!headers.map(h => h.toLowerCase()).includes('raggruppamento')) {
+                    headers.push('Raggruppamento');
+                    for (let i = 1; i < data.length; i++) {
+                        data[i].push(''); // Aggiunge una cella vuota
+                    }
+                }
                 return data.slice(1).map(row => {
                     const obj = {};
                     headers.forEach((header, index) => {
@@ -1930,7 +2127,6 @@ switch (currentPage) {
             const messageBoxMillesimi = document.getElementById('message-import-millesimi');
             const saveBtnContainerMillesimi = document.getElementById('save-button-container-millesimi');
             const saveBtnMillesimi = document.getElementById('save-imported-data-btn-millesimi');
-            let millesimiDataToSave = null;
             let millesimiFileName = '';
 
             const loadLatestMillesimiData = async () => {
@@ -1938,30 +2134,13 @@ switch (currentPage) {
                 const snapshot = await getDocs(q);
                 if (!snapshot.empty) {
                     const docData = snapshot.docs[0].data();
-                    const data = docData.tableData;
+                    let data = docData.tableData;
 
-                    // --- LOGICA DI RICALCOLO: Applica sempre i gruppi automatici ai dati caricati ---
-                    if (data.length > 0) {
-                        const headers = Object.keys(data[0]);
-                        const lowerCaseHeaders = headers.map(h => h.toLowerCase());
-                        const internoHeader = headers[lowerCaseHeaders.findIndex(h => ['interno', 'appartamento', 'unita'].includes(h))];
-                        const gruppoHeader = headers[lowerCaseHeaders.findIndex(h => h === 'raggruppamento')];
+                    // Applica le regole di classificazione ai dati esistenti
+                    data = applyClassificationRules(data, activeRules);
 
-                        if (internoHeader && gruppoHeader) {
-                            data.forEach(row => {
-                                const internoValue = row[internoHeader];
-                                const autoGroup = getAutomaticGroupForImport(internoValue);
-                                row[gruppoHeader] = autoGroup; // Sovrascrive il raggruppamento con quello ricalcolato
-                            });
-                        }
-                    }
-                    // --- FINE LOGICA DI RICALCOLO ---
-
-                    // Passiamo 'true' per renderizzare la tabella in modalità modificabile
                     tableContainerMillesimi.innerHTML = generateTableHTML(data, true);
-                    // Mostriamo il pulsante di salvataggio anche per i dati esistenti
                     saveBtnContainerMillesimi.classList.remove('hidden');
-                    // Impostiamo il nome del file per il logging, se disponibile
                     millesimiFileName = docData.fileName || 'dati_esistenti.xlsx';
                 } else {
                     tableContainerMillesimi.innerHTML = '<p style="color:var(--secondary-text);">Nessun dato anagrafico ancora importato.</p>';
@@ -1971,7 +2150,7 @@ switch (currentPage) {
 
             fileInputMillesimi.addEventListener('change', (event) => {
                 const file = event.target.files[0];
-                millesimiDataToSave = null; millesimiFileName = '';
+                millesimiFileName = '';
                 saveBtnContainerMillesimi.classList.add('hidden'); messageBoxMillesimi.style.display = 'none';
                 if (!file) { loadLatestMillesimiData(); return; }
                 
@@ -1985,31 +2164,15 @@ switch (currentPage) {
                         const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
                         if (jsonData.length < 2) throw new Error("Il file deve contenere almeno un'intestazione e una riga di dati.");
 
-                        // Aggiungi la colonna "raggruppamento" se non esiste
-                        let headers = jsonData[0];
-                        let lowerCaseHeaders = headers.map(h => h.toString().toLowerCase());
-                        if (!lowerCaseHeaders.includes('raggruppamento')) {
-                            headers.push('raggruppamento');
-                            lowerCaseHeaders.push('raggruppamento');
-                            for (let i = 1; i < jsonData.length; i++) {
-                                jsonData[i].push(''); // Aggiunge una cella vuota temporanea
-                            }
-                        }
-
-                        // Popola la colonna raggruppamento con i valori calcolati
-                        const internoIndex = lowerCaseHeaders.findIndex(h => ['interno', 'appartamento', 'unita'].includes(h));
-                        const raggruppamentoIndex = lowerCaseHeaders.findIndex(h => h === 'raggruppamento');
-
-                        if (internoIndex !== -1) {
-                            for (let i = 1; i < jsonData.length; i++) {
-                                const internoValue = jsonData[i][internoIndex];
-                                const autoGroup = getAutomaticGroupForImport(internoValue);
-                                jsonData[i][raggruppamentoIndex] = autoGroup; // Aggiorna il modello dati
-                            }
-                        }
+                        let dataAsObjects = convertArrayOfArraysToObjects(jsonData);
                         
-                        millesimiDataToSave = jsonData;
-                        tableContainerMillesimi.innerHTML = generateTableHTML(jsonData, true); // Passa true per indicare che è un'anteprima
+                        // Applica prima il raggruppamento automatico di base per riempire i campi vuoti
+                        dataAsObjects = applyAutomaticGrouping(dataAsObjects, partialCondosList);
+                        
+                        // Poi, applica le regole di classificazione del supervisore (che possono sovrascrivere i valori)
+                        dataAsObjects = applyClassificationRules(dataAsObjects, activeRules);
+                        
+                        tableContainerMillesimi.innerHTML = generateTableHTML(dataAsObjects, true);
                         saveBtnContainerMillesimi.classList.remove('hidden');
                     } catch (err) {
                         messageBoxMillesimi.className = 'message-box error';
@@ -2072,14 +2235,14 @@ switch (currentPage) {
                 }
             });
 
-            // --- LOGICA PER IMPORTAZIONE NUMERI UTILI ---
+            // --- LOGICA PER IMPORTAZIONE NUMERI UTILI (invariata) ---
             const fileInputPhones = document.getElementById('excel-file-input-phones');
             const tableContainerPhones = document.getElementById('excel-table-container-phones');
             const messageBoxPhones = document.getElementById('message-import-phones');
             const saveBtnContainerPhones = document.getElementById('save-button-container-phones');
             const saveBtnPhones = document.getElementById('save-imported-data-btn-phones');
             let phoneDataToSave = null;
-            let phoneFileName = '';
+            let phoneFileNameForSave = '';
 
             const loadLatestPhoneData = async () => {
                 const q = query(collection(db, "importedPhoneNumbers"), orderBy("uploadedAt", "desc"), limit(1));
@@ -2094,18 +2257,18 @@ switch (currentPage) {
 
             fileInputPhones.addEventListener('change', (event) => {
                 const file = event.target.files[0];
-                phoneDataToSave = null; phoneFileName = '';
+                phoneDataToSave = null; phoneFileNameForSave = '';
                 saveBtnContainerPhones.classList.add('hidden'); messageBoxPhones.style.display = 'none';
                 if (!file) { loadLatestPhoneData(); return; }
 
-                phoneFileName = file.name;
+                phoneFileNameForSave = file.name;
                 tableContainerPhones.innerHTML = '<p>Caricamento anteprima...</p>';
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     try {
                         const data = new Uint8Array(e.target.result);
                         const workbook = XLSX.read(data, { type: 'array' });
-                        const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
+                        const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
                         if (jsonData.length === 0) throw new Error("Il file è vuoto.");
                         phoneDataToSave = jsonData;
                         tableContainerPhones.innerHTML = generateTableHTML(jsonData);
@@ -2120,16 +2283,16 @@ switch (currentPage) {
             });
 
             saveBtnPhones.addEventListener('click', async () => {
-                if (!phoneDataToSave || phoneDataToSave.length < 2) return;
+                if (!phoneDataToSave) return;
                 saveBtnPhones.disabled = true; saveBtnPhones.textContent = 'Salvataggio...';
                 try {
                     await addDoc(collection(db, "importedPhoneNumbers"), {
-                        fileName: phoneFileName,
-                        tableData: convertArrayOfArraysToObjects(phoneDataToSave),
+                        fileName: phoneFileNameForSave,
+                        tableData: phoneDataToSave,
                         uploadedBy: currentUser.uid,
                         uploadedAt: serverTimestamp()
                     });
-                    await logActivity("phone_data_imported", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { fileName: phoneFileName });
+                    await logActivity("phone_data_imported", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { fileName: phoneFileNameForSave });
                     fileInputPhones.value = '';
                     saveBtnContainerPhones.classList.add('hidden');
                     await loadLatestPhoneData();
@@ -2142,11 +2305,8 @@ switch (currentPage) {
                 }
             });
 
-            // Carica i dati iniziali in sequenza per evitare race condition
-            // 1. Carica prima i gruppi, perché sono necessari per il calcolo
-            await loadPartialCondosForImport();
-            
-            // 2. Ora carica i dati dei millesimi e dei telefoni (possono andare in parallelo)
+            // Carica i dati iniziali
+            await loadPrerequisites();
             await Promise.all([loadLatestMillesimiData(), loadLatestPhoneData()]);
         };
 
@@ -2258,6 +2418,254 @@ switch (currentPage) {
             }
         };
 
+        const toggleGroupListVisibility = () => {
+            const list = document.getElementById('partial-condos-list');
+            const chevron = document.getElementById('group-list-chevron');
+            if (!list || !chevron) return;
+
+            // Toggle a class on the list container for smooth animations if added later
+            const isHiding = list.style.display === 'none';
+            if (isHiding) {
+                list.style.display = 'block';
+                chevron.style.transform = 'rotate(0deg)';
+            } else {
+                list.style.display = 'none';
+                chevron.style.transform = 'rotate(-90deg)';
+            }
+        };
+
+        // --- NUOVE FUNZIONI PER GESTIONE REGOLE GRUPPI (v2) ---
+        let groupRulesUnsubscribe = null;
+        let partialCondosForRules = []; // Cache per i gruppi
+        let excelHeadersForRules = []; // Cache per le intestazioni del file anagrafica
+
+        const openRuleEditor = (rule = null) => {
+            const card = document.getElementById('rule-editor-card');
+            const form = document.getElementById('rule-editor-form');
+            const title = document.getElementById('rule-editor-title');
+            const classificationSelect = document.getElementById('rule-classification');
+            const columnSelect = document.getElementById('rule-target-column');
+
+            // Popola il dropdown dei gruppi
+            classificationSelect.innerHTML = '<option value="">Seleziona un gruppo...</option>' +
+                partialCondosForRules.map(condo => `<option value="${condo.name}">${condo.name}</option>`).join('') +
+                '<option value="__CREATE_NEW__" style="font-weight:bold; color:var(--accent-color);">++ Crea nuovo gruppo... ++</option>';
+
+            // Popola il dropdown delle colonne
+            columnSelect.innerHTML = '<option value="">Seleziona colonna...</option>' +
+                excelHeadersForRules.map(header => `<option value="${header}">${header}</option>`).join('');
+
+            if (rule) {
+                // Modalità modifica
+                title.textContent = 'Modifica Regola';
+                form.querySelector('#rule-id').value = rule.id;
+                form.querySelector('#rule-name').value = rule.name;
+                form.querySelector('#rule-type').value = rule.type;
+                classificationSelect.value = rule.params.classification;
+
+                if (rule.type === 'row_range_classification') {
+                    form.querySelector('#rule-start-row').value = rule.params.startRow;
+                    form.querySelector('#rule-end-row').value = rule.params.endRow;
+                } else if (rule.type === 'text_contains_classification') {
+                    columnSelect.value = rule.params.targetColumn;
+                    form.querySelector('#rule-search-text').value = rule.params.searchText;
+                }
+            } else {
+                // Modalità creazione
+                title.textContent = 'Crea Nuova Regola';
+                form.reset();
+                form.querySelector('#rule-id').value = '';
+            }
+            
+            // Simula un evento 'change' per mostrare i campi corretti
+            const event = new Event('change');
+            form.querySelector('#rule-type').dispatchEvent(event);
+            classificationSelect.dispatchEvent(event);
+
+            card.classList.remove('hidden');
+        };
+
+        const closeRuleEditor = () => {
+            const card = document.getElementById('rule-editor-card');
+            card.classList.add('hidden');
+            document.getElementById('rule-editor-form').reset();
+        };
+
+        const saveGroupRule = async (event) => {
+            event.preventDefault();
+            const form = event.target;
+            const ruleId = form.querySelector('#rule-id').value;
+            const ruleName = form.querySelector('#rule-name').value.trim();
+            const ruleType = form.querySelector('#rule-type').value;
+            let classification = form.querySelector('#rule-classification').value;
+
+            if (!ruleName) { alert('Il nome della regola è obbligatorio.'); return; }
+
+            // Gestione creazione nuovo gruppo
+            if (classification === '__CREATE_NEW__') {
+                const newGroupNameInput = form.querySelector('#rule-new-group-name');
+                const newGroupName = newGroupNameInput.value.trim();
+                if (!newGroupName) {
+                    alert('Inserisci un nome per il nuovo gruppo.');
+                    newGroupNameInput.focus();
+                    return;
+                }
+                try {
+                    await addDoc(collection(db, 'partialCondos'), { name: newGroupName, createdBy: currentUser.uid, createdAt: serverTimestamp() });
+                    classification = newGroupName; // Usa il nuovo nome per la regola
+                } catch (error) {
+                    console.error("Errore nella creazione del gruppo:", error);
+                    alert("Si è verificato un errore nella creazione del nuovo gruppo.");
+                    return;
+                }
+            }
+
+            if (!classification) { alert('Seleziona un gruppo a cui assegnare la classificazione.'); return; }
+
+            const ruleData = { name: ruleName, type: ruleType, params: {}, isActive: true, updatedAt: serverTimestamp() };
+
+            // Costruzione parametri in base al tipo di regola
+            if (ruleType === 'row_range_classification') {
+                const startRow = parseInt(form.querySelector('#rule-start-row').value, 10);
+                const endRow = parseInt(form.querySelector('#rule-end-row').value, 10);
+                if (!startRow || !endRow) { alert('Specifica un intervallo di righe valido.'); return; }
+                if (startRow > endRow) { alert('La riga di inizio non può essere maggiore della riga di fine.'); return; }
+                ruleData.params = { startRow, endRow, classification };
+            } else if (ruleType === 'text_contains_classification') {
+                const targetColumn = form.querySelector('#rule-target-column').value;
+                const searchText = form.querySelector('#rule-search-text').value.trim();
+                if (!targetColumn || !searchText) { alert('Specifica una colonna e un testo da cercare.'); return; }
+                ruleData.params = { targetColumn, searchText, classification };
+            }
+
+            try {
+                if (ruleId) {
+                    await updateDoc(doc(db, 'groupRules', ruleId), ruleData);
+                    await logActivity("group_rule_updated", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { ruleName: ruleName });
+                } else {
+                    ruleData.createdAt = serverTimestamp();
+                    await addDoc(collection(db, 'groupRules'), ruleData);
+                    await logActivity("group_rule_created", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { ruleName: ruleName });
+                }
+                closeRuleEditor();
+            } catch (error) {
+                console.error('Errore nel salvataggio della regola:', error);
+                alert('Si è verificato un errore durante il salvataggio.');
+            }
+        };
+
+        const deleteGroupRule = async (ruleId) => {
+            if (!confirm('Sei sicuro di voler eliminare questa regola?')) return;
+            try {
+                await deleteDoc(doc(db, 'groupRules', ruleId));
+                await logActivity("group_rule_deleted", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { ruleId: ruleId });
+            } catch (error) {
+                console.error('Errore eliminazione regola:', error);
+                alert('Errore durante l\'eliminazione.');
+            }
+        };
+
+        const toggleRuleStatus = async (ruleId, currentStatus) => {
+            try {
+                await updateDoc(doc(db, 'groupRules', ruleId), { isActive: !currentStatus });
+            } catch (error) {
+                console.error('Errore aggiornamento stato regola:', error);
+            }
+        };
+
+        const loadGroupRules = () => {
+            const listEl = document.getElementById('group-rules-list');
+            if (!listEl) return;
+
+            // Carica in parallelo gruppi, regole e intestazioni excel
+            const condosQuery = query(collection(db, "partialCondos"), orderBy("name"));
+            const headersQuery = query(collection(db, "importedData"), orderBy("uploadedAt", "desc"), limit(1));
+            
+            Promise.all([getDocs(condosQuery), getDocs(headersQuery)]).then(([condosSnapshot, headersSnapshot]) => {
+                partialCondosForRules = condosSnapshot.docs.map(d => d.data());
+                if (!headersSnapshot.empty) {
+                    const data = headersSnapshot.docs[0].data().tableData;
+                    if (data && data.length > 0) {
+                        excelHeadersForRules = Object.keys(data[0]);
+                    }
+                }
+            });
+
+            const rulesQuery = query(collection(db, 'groupRules'), orderBy('createdAt', 'desc'));
+            if (groupRulesUnsubscribe) groupRulesUnsubscribe();
+
+            groupRulesUnsubscribe = onSnapshot(rulesQuery, (snapshot) => {
+                if (snapshot.empty) {
+                    listEl.innerHTML = `<div class="card"><p style="color:var(--secondary-text);">Nessuna regola di classificazione definita.</p></div>`;
+                    return;
+                }
+                listEl.innerHTML = snapshot.docs.map(docSnap => {
+                    const rule = { id: docSnap.id, ...docSnap.data() };
+                    const params = rule.params;
+                    let description = 'Regola non configurata.';
+                    if (rule.type === 'row_range_classification') {
+                        description = `Se righe da <strong>${params.startRow}</strong> a <strong>${params.endRow}</strong>, assegna a gruppo <strong>${params.classification}</strong>.`;
+                    } else if (rule.type === 'text_contains_classification') {
+                        description = `Se colonna <strong>${params.targetColumn}</strong> contiene "<strong>${params.searchText}</strong>", assegna a gruppo <strong>${params.classification}</strong>.`;
+                    }
+
+                    return `
+                    <div class="list-item" style="background-color: var(--surface-color); align-items: flex-start;">
+                        <div class="list-item-content" style="padding-top: 0.5rem;">
+                            <div class="title" style="font-weight: 600;">${rule.name}</div>
+                            <div class="subtitle" style="margin-top: 0.5rem;">${description}</div>
+                        </div>
+                        <div class="flex flex-col items-end gap-2" style="padding-top: 0.5rem;">
+                             <label class="flex items-center gap-2 cursor-pointer" style="font-size: 0.9rem;">
+                                <span>${rule.isActive ? 'Attiva' : 'Disattiva'}</span>
+                                <div style="position: relative; width: 40px; height: 22px;">
+                                    <input type="checkbox" onchange="toggleRuleStatus('${rule.id}', ${rule.isActive})" ${rule.isActive ? 'checked' : ''} class="hidden">
+                                    <div style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: ${rule.isActive ? 'var(--accent-color)' : 'var(--surface-color-light)'}; transition: .4s; border-radius: 34px;"></div>
+                                    <div style="position: absolute; height: 16px; width: 16px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; transform: ${rule.isActive ? 'translateX(18px)' : 'translateX(0)'};"></div>
+                                </div>
+                            </label>
+                            <div class="flex gap-2 mt-2">
+                                <button onclick='openRuleEditor(${JSON.stringify(rule).replace(/'/g, "'")})' class="btn btn-secondary" style="padding: 0.4rem 0.8rem; font-size:0.8rem;">Modifica</button>
+                                <button onclick="deleteGroupRule('${rule.id}')" class="btn" style="background:var(--danger); color:white; padding: 0.4rem 0.8rem; font-size:0.8rem;">Elimina</button>
+                            </div>
+                        </div>
+                    </div>
+                    `;
+                }).join('');
+            });
+        };
+
+        const setupGestioneGruppiHandlers = () => {
+            const addNewRuleBtn = document.getElementById('add-new-rule-btn');
+            const cancelRuleBtn = document.getElementById('cancel-rule-edit-btn');
+            const ruleForm = document.getElementById('rule-editor-form');
+            const ruleTypeSelect = document.getElementById('rule-type');
+            const classificationSelect = document.getElementById('rule-classification');
+
+            addNewRuleBtn?.addEventListener('click', () => openRuleEditor(null));
+            cancelRuleBtn?.addEventListener('click', closeRuleEditor);
+            ruleForm?.addEventListener('submit', saveGroupRule);
+
+            ruleTypeSelect?.addEventListener('change', (e) => {
+                const paramsRowRange = document.getElementById('params-row-range');
+                const paramsTextContains = document.getElementById('params-text-contains');
+                const isRowRange = e.target.value === 'row_range_classification';
+                paramsRowRange.classList.toggle('hidden', !isRowRange);
+                paramsTextContains.classList.toggle('hidden', isRowRange);
+                // Rendi i campi required/not-required per una validazione HTML base
+                paramsRowRange.querySelectorAll('input').forEach(i => i.required = isRowRange);
+                paramsTextContains.querySelectorAll('input, select').forEach(i => i.required = !isRowRange);
+            });
+
+            classificationSelect?.addEventListener('change', (e) => {
+                const newGroupContainer = document.getElementById('new-group-container');
+                const isCreateNew = e.target.value === '__CREATE_NEW__';
+                newGroupContainer.classList.toggle('hidden', !isCreateNew);
+                newGroupContainer.querySelector('input').required = isCreateNew;
+            });
+        };
+        // --- FINE NUOVE FUNZIONI (v2) ---
+
         const deleteUsefulNumber = async (id) => {
             if (!confirm('Sei sicuro di voler eliminare questo numero?')) {
                 return;
@@ -2365,9 +2773,29 @@ switch (currentPage) {
             const container = document.getElementById("polls-container");
             if (!container) return;
 
+            // Logica per mostrare/nascondere il form di creazione sondaggio
+            const creationCard = document.getElementById('create-poll-form')?.closest('.card');
+            if (creationCard) {
+                creationCard.classList.add('hidden'); // Nascondi di default per evitare sfarfallio
+                const creationSettingsRef = doc(db, "settings", "pollCreationAuthorization");
+                getDoc(creationSettingsRef).then(settingsSnap => {
+                    // Se non impostato, default a 'option1' (solo ruoli admin)
+                    const creationSetting = settingsSnap.exists() ? settingsSnap.data().setting : 'option1'; 
+                    const allowedRoles = {
+                        option1: ['supervisore', 'amministratore', 'consigliere'],
+                        option2: ['supervisore', 'amministratore', 'consigliere', 'condomino'],
+                        option3: ['supervisore', 'consigliere']
+                    };
+                    const rolesForCreation = allowedRoles[creationSetting] || allowedRoles.option1;
+                    if (rolesForCreation.includes(userProfile.tipoUtente)) {
+                        creationCard.classList.remove('hidden');
+                    }
+                });
+            }
+
             const settingsRef = doc(db, "settings", "pollAuthorization");
             
-            // Fetch settings once, then listen for poll updates
+            // Fetch settings una volta, poi ascolta gli aggiornamenti dei sondaggi
             getDoc(settingsRef).then(settingsSnap => {
                 const pollSetting = settingsSnap.exists() ? settingsSnap.data().setting : 'option2';
                 const canUserVote = isUserAllowedToVote(userProfile.tipoUtente, pollSetting);
@@ -2525,6 +2953,7 @@ switch (currentPage) {
         const checkForNewCommunications=()=>{if(!currentUser||"custode"===userProfile?.tipoUtente)return;communicationsListener&&communicationsListener();const e=parseInt(localStorage.getItem(`lastSeenComm_${currentUser.uid}`),10)||0,t=new Date(e),o=query(collection(db,"communications"),where("createdAt",">",t));communicationsListener=onSnapshot(o,e=>{updateNotificationUI(!e.empty)})};
         
         window.navigateTo = navigateTo;
+        window.navigateBack = navigateBack; // Aggiunto per il pulsante indietro
         window.logout = logout;
         window.voteOnPoll = voteOnPoll;
         window.updateReportStatus = updateReportStatus;
@@ -2532,6 +2961,10 @@ switch (currentPage) {
         window.showPollVoters = showPollVoters;
         window.deletePartialCondo = deletePartialCondo;
         window.deleteUsefulNumber = deleteUsefulNumber;
+        window.openRuleEditor = openRuleEditor;
+        window.deleteGroupRule = deleteGroupRule;
+        window.toggleRuleStatus = toggleRuleStatus;
+        window.toggleGroupListVisibility = toggleGroupListVisibility;
 
         onAuthStateChanged(auth, async (user) => {
             if (user) {
@@ -2543,7 +2976,9 @@ switch (currentPage) {
                 navigateTo(currentPage === 'login' || !currentPage ? landingPage : currentPage);
             } else {
                 if (communicationsListener) communicationsListener();
-                currentUser = null; userProfile = null;
+                currentUser = null; 
+                userProfile = null;
+                navigationHistory = []; // Azzeriamo la cronologia qui, nel punto più sicuro.
                 navigateTo('login');
             }
         });
