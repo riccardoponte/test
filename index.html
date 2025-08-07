@@ -1,18 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="it">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Con-bridge</title>
-
-    <!-- FIXED SCRIPT LOADING START -->
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <!-- FIXED SCRIPT LOADING END -->
-
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -71,21 +62,6 @@
             gap: 1rem;
             margin-bottom: 2rem;
             padding: 1rem 0;
-        }
-        .back-btn {
-            background: none;
-            border: none;
-            color: var(--primary-text);
-            cursor: pointer;
-            padding: 0.5rem;
-            margin-left: -0.5rem; /* Compensa il padding per un migliore allineamento visivo */
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 50%;
-        }
-        .back-btn:active {
-            background-color: rgba(255,255,255,0.1);
         }
         .user-avatar {
             width: 40px;
@@ -567,6 +543,7 @@
             border-bottom: 1px solid var(--surface-color);
         }
     </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
     <div id="app"></div>
@@ -581,12 +558,11 @@
         </div>
     </div>
 
-    <script>
-        // REMOVED type="module" from the script tag
-        
-        // REMOVED all import statements
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+        import { getFirestore, doc, setDoc, getDoc, collection, addDoc, query, orderBy, limit, onSnapshot, serverTimestamp, updateDoc, where, getDocs, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
-        // NEW: Correct initialization using the global `firebase` object
         const firebaseConfig = {
             apiKey: "AIzaSyCrLAomryfk-0s5Inm2XOsBrJusgmMI87E",
             authDomain: "condo-app-49255.firebaseapp.com",
@@ -596,23 +572,13 @@
             appId: "1:485319278595:web:2997689b234fbba4dece36",
             measurementId: "G-2SM3DH41EZ"
         };
-        
-        firebase.initializeApp(firebaseConfig);
-
-        const auth = firebase.auth();
-        const db = firebase.firestore();
-
-        // For convenience, we create constants for the functions we need.
-        // This means the rest of the code doesn't need to be changed.
-        const { serverTimestamp } = firebase.firestore.FieldValue;
-        const { collection, query, orderBy, limit, onSnapshot, where, getDocs, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc } = firebase.firestore;
-        const { onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, sendPasswordResetEmail } = firebase.auth;
-        // END OF NEW INITIALIZATION
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
 
         let currentUser = null;
         let userProfile = null;
         let currentPage = 'login';
-        let navigationHistory = []; // Aggiunto per la cronologia di navigazione
         let communicationsListener = null;
 
         // Stato per la registrazione, reso globale a livello di modulo per un reset corretto
@@ -649,44 +615,29 @@
         const login=async(t,e)=>await signInWithEmailAndPassword(auth,t,e);
         const logout=async()=>{
             communicationsListener&&(communicationsListener(),communicationsListener=null);
-            // Non è più necessario azzerare manualmente lo stato qui,
-            // perché onAuthStateChanged lo farà in modo affidabile.
-            // La chiamata a navigateTo('login') viene rimossa perché gestita da onAuthStateChanged.
             await signOut(auth);
+            currentUser=null;
+            userProfile=null;
+            // Reset esplicito dello stato di registrazione
+            groupedProperties = {};
+            partialCondosList = [];
+            navigateTo("login");
         };
         const resetPassword=async t=>await sendPasswordResetEmail(auth,t);
         const loadUserProfile=async t=>{if(t){const e=await getDoc(doc(db,"users",t.uid));e.exists()&&(userProfile=e.data())}};
         
-        const navigateBack = () => {
-            if (navigationHistory.length > 0) {
-                const previousPage = navigationHistory.pop();
-                // Il secondo parametro 'true' indica che è una navigazione "indietro"
-                navigateTo(previousPage, true);
-            }
-        };
-
-        const navigateTo = (newPage, isBackNavigation = false) => {
+        const navigateTo=(e)=>{
             const userType = userProfile?.tipoUtente;
-
-            // Gestione del reindirizzamento per il custode
-            if (userType === "custode" && ["dashboard", "bacheca", "sondaggi"].includes(newPage)) {
-                navigateTo("segnalazioni", isBackNavigation);
-                return;
+            if (['supervisore', 'adm'].includes(userType) && ['userManagement', 'gestioneGruppi', 'importazione'].includes(e)) {
+                 currentPage = e;
+                 renderCurrentPage();
+                 return;
             }
-
-            // Se la pagina non cambia, non fare nulla per evitare di sporcare la cronologia
-            if (newPage === currentPage) {
-                return;
+            if(userType==="custode"&&["dashboard","bacheca","sondaggi"].includes(e)){
+                navigateTo("segnalazioni");
+            } else {
+                currentPage=e,renderCurrentPage();
             }
-
-            // Aggiungi la pagina corrente alla cronologia solo se si sta navigando "in avanti"
-            if (!isBackNavigation) {
-                navigationHistory.push(currentPage);
-            }
-
-            // Imposta la nuova pagina e la renderizza
-            currentPage = newPage;
-            renderCurrentPage();
         };
         
         const getPriorityColor=t=>({alta:"priority-alta",media:"priority-media",bassa:"priority-bassa"}[t]||"priority-bassa");
@@ -695,17 +646,8 @@
         const renderHeader = (title) => {
             const userInitial = userProfile?.nome ? userProfile.nome.charAt(0).toUpperCase() : 'U';
             const userType = userProfile?.tipoUtente || '';
-            const backButtonHtml = navigationHistory.length > 0 ? `
-                <button onclick="navigateBack()" class="back-btn" aria-label="Torna indietro">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width: 28px; height: 28px;">
-                        <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
-                    </svg>
-                </button>
-            ` : '';
-
             return `
             <header class="page-header">
-                ${backButtonHtml}
                 <div class="user-avatar">${userInitial}</div>
                 <div>
                     <h1 class="page-title">${title}</h1>
@@ -1835,25 +1777,7 @@ switch (currentPage) {
                         propertyItemsContainer.innerHTML = '';
                         propertySelectionWrapper.classList.add('hidden');
                         summaryEl.innerHTML = 'Seleziona un nominativo per continuare...';
-                    } else {
-                        await login(o, n);
-                        // FIX: Non affidarsi più passivamente a onAuthStateChanged per la navigazione post-login.
-                        // Dopo un login andato a buon fine, prendiamo il controllo diretto del flusso.
-                        // 1. Aggiorniamo il nostro stato globale con l'utente corrente.
-                        currentUser = auth.currentUser;
-                        if (currentUser) {
-                            // 2. Carichiamo il suo profilo.
-                            await loadUserProfile(currentUser);
-                            // 3. Navighiamo alla pagina corretta.
-                            const userType = userProfile?.tipoUtente;
-                            let landingPage = 'dashboard';
-                            if (userType === 'custode') landingPage = 'segnalazioni';
-                            navigateTo(landingPage);
-                        } else {
-                            // Caso di sicurezza, anche se non dovrebbe mai accadere dopo un login riuscito.
-                            throw new Error("Login fallito, utente non trovato.");
-                        }
-                    }
+                    } else { await login(o, n); }
                 } catch (p) { d.textContent = p.message; d.style.display = "block"; }
             });
             
@@ -2022,61 +1946,6 @@ switch (currentPage) {
                 }
             };
 
-            // --- NUOVA FUNZIONE PER RAGGRUPPAMENTO AUTOMATICO (v2 - Corretta) ---
-            const applyAutomaticGrouping = (tableData, partialCondos) => {
-                if (!tableData || tableData.length === 0 || !partialCondos || partialCondos.length === 0) {
-                    return tableData;
-                }
-
-                const headers = Object.keys(tableData[0]);
-                const findHeader = (keywords) => headers.find(h => keywords.map(k => k.toLowerCase()).includes(h.toLowerCase()));
-
-                const apartmentHeader = findHeader(['interno', 'appartamento', 'unita']);
-                const groupHeader = findHeader(['raggruppamento']);
-
-                if (!apartmentHeader || !groupHeader) {
-                    console.warn("Intestazioni 'interno' o 'raggruppamento' non trovate. Salto il raggruppamento automatico.");
-                    return tableData;
-                }
-
-                const sortedCondos = [...partialCondos].sort((a, b) => b.name.length - a.name.length);
-
-                tableData.forEach(row => {
-                    // Assegna il gruppo solo se non è già stato impostato
-                    if (row[groupHeader]) {
-                        return; // Salta questa riga se ha già un gruppo
-                    }
-
-                    const interno = row[apartmentHeader] ? row[apartmentHeader].toString().toLowerCase() : '';
-                    if (!interno) return;
-
-                    let foundGroup = '';
-
-                    // Logica di assegnazione con priorità, simile alla registrazione
-                    if (/\be\b|\be-/.test(interno)) {
-                        const boxCondo = partialCondos.find(c => c.name.toLowerCase() === 'box');
-                        if (boxCondo) foundGroup = boxCondo.name;
-                    } 
-                    else if (interno.includes('b11')) {
-                        const b11Condo = partialCondos.find(c => c.name.toLowerCase().includes('bellini 11'));
-                        if (b11Condo) foundGroup = b11Condo.name;
-                    } 
-                    else {
-                        // Se nessuna regola specifica corrisponde, esegui la ricerca generale
-                        for (const condo of sortedCondos) {
-                            if (interno.includes(condo.name.toLowerCase())) {
-                                foundGroup = condo.name;
-                                break; // Trovato il gruppo più lungo corrispondente, esci dal ciclo
-                            }
-                        }
-                    }
-                    
-                    row[groupHeader] = foundGroup;
-                });
-
-                return tableData;
-            };
-
             // --- FUNZIONI HELPER COMUNI ---
             const generateTableHTML = (data, isPreview = false) => {
                 if (!data || data.length === 0) return '<p style="color:var(--secondary-text);">Nessun dato da visualizzare.</p>';
@@ -2166,10 +2035,7 @@ switch (currentPage) {
 
                         let dataAsObjects = convertArrayOfArraysToObjects(jsonData);
                         
-                        // Applica prima il raggruppamento automatico di base per riempire i campi vuoti
-                        dataAsObjects = applyAutomaticGrouping(dataAsObjects, partialCondosList);
-                        
-                        // Poi, applica le regole di classificazione del supervisore (che possono sovrascrivere i valori)
+                        // Applica le regole di classificazione ai dati appena caricati
                         dataAsObjects = applyClassificationRules(dataAsObjects, activeRules);
                         
                         tableContainerMillesimi.innerHTML = generateTableHTML(dataAsObjects, true);
@@ -2953,7 +2819,6 @@ switch (currentPage) {
         const checkForNewCommunications=()=>{if(!currentUser||"custode"===userProfile?.tipoUtente)return;communicationsListener&&communicationsListener();const e=parseInt(localStorage.getItem(`lastSeenComm_${currentUser.uid}`),10)||0,t=new Date(e),o=query(collection(db,"communications"),where("createdAt",">",t));communicationsListener=onSnapshot(o,e=>{updateNotificationUI(!e.empty)})};
         
         window.navigateTo = navigateTo;
-        window.navigateBack = navigateBack; // Aggiunto per il pulsante indietro
         window.logout = logout;
         window.voteOnPoll = voteOnPoll;
         window.updateReportStatus = updateReportStatus;
@@ -2976,9 +2841,7 @@ switch (currentPage) {
                 navigateTo(currentPage === 'login' || !currentPage ? landingPage : currentPage);
             } else {
                 if (communicationsListener) communicationsListener();
-                currentUser = null; 
-                userProfile = null;
-                navigationHistory = []; // Azzeriamo la cronologia qui, nel punto più sicuro.
+                currentUser = null; userProfile = null;
                 navigateTo('login');
             }
         });
