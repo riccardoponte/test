@@ -579,7 +579,7 @@
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
         import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-        import { getFirestore, doc, setDoc, getDoc, collection, addDoc, query, orderBy, limit, onSnapshot, serverTimestamp, updateDoc, where, getDocs, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+        import { getFirestore, doc, setDoc, getDoc, collection, addDoc, query, orderBy, limit, onSnapshot, serverTimestamp, updateDoc, where, getDocs, deleteDoc, runTransaction } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
         const firebaseConfig = {
             apiKey: "AIzaSyCrLAomryfk-0s5Inm2XOsBrJusgmMI87E",
@@ -864,6 +864,12 @@
                         <div class="grid grid-cols-2 gap-4">
                             <div><label class="form-label">Data fine</label><input type="date" id="poll-deadline" required class="form-input"></div>
                             <div><label class="form-label">Ora fine</label><input type="time" id="poll-deadline-time" required class="form-input"></div>
+                        </div>
+                        <div class="form-group" style="margin-top: 1rem;">
+                            <label class="flex items-center gap-3 p-3 rounded-md cursor-pointer" style="background-color: var(--surface-color-light);">
+                                <input type="checkbox" id="poll-multiple-choice" style="width: 20px; height: 20px; accent-color: var(--accent-color); flex-shrink: 0;">
+                                <span class="font-medium">Abilita Risposta Multipla</span>
+                            </label>
                         </div>
                         <div class="flex justify-end gap-4 pt-4"><button type="reset" class="btn btn-secondary">Annulla</button><button type="submit" class="btn btn-primary">Crea</button></div>
                     </form>
@@ -1859,7 +1865,92 @@
         };
 
         const setupBachecaHandlers=()=>{const e=document.getElementById("create-communication-form");e?.addEventListener("submit",async t=>{t.preventDefault();const o=document.getElementById("comm-title"),n=document.getElementById("comm-content"),d=document.getElementById("publish-comm-btn"),i=o.value.trim(),r=n.value.trim();if(!i||!r)return alert("Compila titolo e messaggio.");d.disabled=!0,d.textContent="...";try{await addDoc(collection(db,"communications"),{title:i,content:r,createdBy:`${userProfile.nome} ${userProfile.cognome}`,createdById:currentUser.uid,createdAt:serverTimestamp()}),await logActivity("communication_posted",currentUser.uid,`${userProfile.nome} ${userProfile.cognome}`,{title:i}),e.reset()}catch(c){console.error("Errore:",c),alert("Si è verificato un errore.")}finally{d.disabled=!1,d.textContent="Pubblica"}})};
-        const setupPollHandlers=()=>{const e=document.getElementById("create-poll-form");if(!e)return;const t=document.getElementById("poll-options-list"),o=document.getElementById("add-poll-option");function n(e=""){const o=document.createElement("div");o.className="flex items-center gap-2",o.innerHTML=`<input type="text" class="form-input" style="flex:1" required placeholder="Testo opzione" value="${e}"><button type="button" class="btn-remove-option" style="background:var(--surface-color-light); border:none; color:var(--primary-text); width:36px; height:36px; border-radius:50%; cursor:pointer;">−</button>`,o.querySelector(".btn-remove-option").onclick=()=>{t.removeChild(o),t.childElementCount<2&&n()},t.appendChild(o)}0===t.childElementCount&&(n(),n()),o.onclick=e=>{e.preventDefault(),n()},e.addEventListener("submit",async o=>{o.preventDefault();const n=document.getElementById("poll-title").value,t=document.getElementById("poll-description").value,d=document.getElementById("poll-deadline").value,i=document.getElementById("poll-deadline-time").value,l=e.querySelectorAll('#poll-options-list input[type="text"]'),r=Array.from(l).map(e=>e.value.trim()).filter(Boolean).map(e=>({text:e,votes:0}));if(r.length<2)return alert("Inserisci almeno due opzioni.");if(!d||!i)return alert("Inserisci una data e un'ora di scadenza.");const c=`${d}T${i}`,s=new Date(c);try{await addDoc(collection(db,"polls"),{title:n,description:t,options:r,deadline:s,createdBy:userProfile.nome+" "+userProfile.cognome,createdById:currentUser.uid,createdAt:serverTimestamp(),voters:[]}),await logActivity("poll_created",currentUser.uid,`${userProfile.nome} ${userProfile.cognome}`,{title:n}),e.reset()}catch(p){console.error("Errore:",p)}}),e.addEventListener("reset",()=>{setTimeout(()=>{t.innerHTML="",n(),n()},0)})};
+        const setupPollHandlers = () => {
+            const form = document.getElementById("create-poll-form");
+            if (!form) return;
+            const optionsList = document.getElementById("poll-options-list");
+            const addOptionBtn = document.getElementById("add-poll-option");
+
+            function addOptionInput(value = "") {
+                const div = document.createElement("div");
+                div.className = "flex items-center gap-2";
+                div.innerHTML = `<input type="text" class="form-input" style="flex:1" required placeholder="Testo opzione" value="${value}"><button type="button" class="btn-remove-option" style="background:var(--surface-color-light); border:none; color:var(--primary-text); width:36px; height:36px; border-radius:50%; cursor:pointer;">−</button>`;
+                div.querySelector(".btn-remove-option").onclick = () => {
+                    optionsList.removeChild(div);
+                    if (optionsList.childElementCount < 2) addOptionInput();
+                };
+                optionsList.appendChild(div);
+            }
+
+            if (optionsList.childElementCount === 0) {
+                addOptionInput();
+                addOptionInput();
+            }
+
+            addOptionBtn.onclick = e => {
+                e.preventDefault();
+                addOptionInput();
+            };
+
+            form.addEventListener("submit", async (event) => {
+                event.preventDefault();
+                const title = document.getElementById("poll-title").value;
+                const description = document.getElementById("poll-description").value;
+                const deadlineDate = document.getElementById("poll-deadline").value;
+                const deadlineTime = document.getElementById("poll-deadline-time").value;
+                const isMultipleChoice = document.getElementById("poll-multiple-choice").checked;
+                const optionInputs = form.querySelectorAll('#poll-options-list input[type="text"]');
+                const options = Array.from(optionInputs).map(input => input.value.trim()).filter(Boolean).map(text => ({ text: text, votes: 0 }));
+
+                if (options.length < 2) return alert("Inserisci almeno due opzioni.");
+                if (!deadlineDate || !deadlineTime) return alert("Inserisci una data e un'ora di scadenza.");
+
+                const deadlineISO = `${deadlineDate}T${deadlineTime}`;
+                const deadline = new Date(deadlineISO);
+
+                try {
+                    await runTransaction(db, async (transaction) => {
+                        const counterRef = doc(db, "counters", "polls");
+                        const pollCollectionRef = collection(db, "polls");
+                        const newPollRef = doc(pollCollectionRef); // Genera un ID per il nuovo sondaggio
+
+                        const counterDoc = await transaction.get(counterRef);
+                        const newPollNumber = (counterDoc.exists() ? counterDoc.data().count : 0) + 1;
+
+                        const pollData = {
+                            pollNumber: newPollNumber,
+                            title: title,
+                            description: description,
+                            options: options,
+                            deadline: deadline,
+                            multipleChoice: isMultipleChoice,
+                            createdBy: `${userProfile.nome} ${userProfile.cognome}`,
+                            createdById: currentUser.uid,
+                            createdAt: serverTimestamp(),
+                            voters: []
+                        };
+
+                        transaction.set(newPollRef, pollData);
+                        transaction.set(counterRef, { count: newPollNumber });
+                    });
+
+                    await logActivity("poll_created", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { title: title });
+                    form.reset();
+
+                } catch (error) {
+                    console.error("Errore nella creazione del sondaggio:", error);
+                    alert("Si è verificato un errore durante la creazione del sondaggio.");
+                }
+            });
+
+            form.addEventListener("reset", () => {
+                setTimeout(() => {
+                    optionsList.innerHTML = "";
+                    addOptionInput();
+                    addOptionInput();
+                }, 0);
+            });
+        };
         const setupReportHandlers = () => { const e=document.getElementById("create-report-form");e?.addEventListener("submit",async t=>{t.preventDefault();const o=document.getElementById("report-title").value,n=document.getElementById("report-description").value,i=document.getElementById("report-category").value,d=document.getElementById("report-priority").value,r=document.getElementById("report-location").value;if(!o||!n||!i||!d||!r)return alert("Compila tutti i campi.");const c={title:o,description:n,category:i,priority:d,location:r,status:"aperta",createdBy:`${userProfile.nome} ${userProfile.cognome}`,createdById:currentUser.uid,createdAt:serverTimestamp()},l=document.getElementById("report-recipient");l&&l.value?c.recipientType=l.value:c.recipientType="management";try{await addDoc(collection(db,"reports"),c),await logActivity("report_created",currentUser.uid,`${userProfile.nome} ${userProfile.cognome}`,{title:o,priority:d}),e.reset()}catch(a){console.error("Errore:",a)}})};
         const setupProfileHandlers=()=>{const e=document.getElementById("profile-form");e?.addEventListener("submit",async t=>{t.preventDefault();const o=document.getElementById("profile-nome").value,n=document.getElementById("profile-cognome").value,d=document.getElementById("profile-telefono").value;try{await updateDoc(doc(db,"users",currentUser.uid),{nome:o,cognome:n,telefono:d}),await loadUserProfile(currentUser),showProfileMessage("success","Profilo aggiornato!")}catch(m){showProfileMessage("error",`Errore: ${m.message}`)}})};
 
@@ -2619,7 +2710,7 @@
                 creationCard.classList.add('hidden');
                 const creationSettingsRef = doc(db, "settings", "pollCreationAuthorization");
                 getDoc(creationSettingsRef).then(settingsSnap => {
-                    const creationSetting = settingsSnap.exists() ? settingsSnap.data().setting : 'option1'; 
+                    const creationSetting = settingsSnap.exists() ? settingsSnap.data().setting : 'option1';
                     const allowedRoles = {
                         option1: ['supervisore', 'amministratore', 'consigliere'],
                         option2: ['supervisore', 'amministratore', 'consigliere', 'condomino'],
@@ -2644,19 +2735,46 @@
                         const isExpired = deadline < new Date();
                         const hasVoted = poll.voters && poll.voters.some(v => v.uid === currentUser.uid);
                         const totalVotes = poll.options.reduce((sum, opt) => sum + (opt.votes || 0), 0);
-                        const showVoteButtons = !isExpired && !hasVoted && canUserVote;
-                        const showVotersButton = isExpired ? `<button onclick="showPollVoters('${docSnap.id}')" class="btn btn-secondary w-full mt-4">Mostra Votanti</button>` : '';
-                        return `
-                        <div class="card" style="padding:1rem; margin-bottom:1rem;">
-                            <div class="list-item" style="padding:0; margin-bottom:1rem; cursor:default;">
-                                <div class="list-item-icon"><svg fill="currentColor" viewBox="0 0 24 24"><path d="M22,21H2V3H4V19H6V10H10V19H12V6H16V19H18V14H22V21Z"/></svg></div>
-                                <div class="list-item-content">
-                                    <div class="title">${poll.title}</div>
-                                    <div class="subtitle">${isExpired ? "Sondaggio chiuso" : "Sondaggio attivo"} ${hasVoted ? "· Hai votato" : ""}</div>
-                                </div>
-                            </div>
-                            <div class="space-y-4">
-                                ${poll.options.map((option, index) => {
+                        const showVoteUI = !isExpired && canUserVote;
+                        
+                        const pollTitle = poll.pollNumber ? `Sondaggio N. ${poll.pollNumber}: ${poll.title}` : poll.title;
+                        const buttonText = hasVoted ? 'Cambia Voto' : 'Invia Voto';
+
+                        // --- MODIFICA 1: Formattazione e HTML per le date ---
+                        const dateOptions = { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' };
+                        const creationDate = poll.createdAt ? poll.createdAt.toDate().toLocaleString("it-IT", dateOptions) : 'N/D';
+                        const closingDate = poll.deadline ? deadline.toLocaleString("it-IT", dateOptions) : 'N/D';
+                        const dateInfoHtml = `
+                        <div style="font-size: 0.8rem; color: var(--secondary-text); margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--surface-color-light);">
+                            <div><strong>Creato il:</strong> ${creationDate}</div>
+                            <div><strong>Scade il:</strong> ${closingDate}</div>
+                        </div>`;
+
+                        let optionsHtml = '';
+                        if (showVoteUI) {
+                            if (poll.multipleChoice) {
+                                const voterRecord = poll.voters.find(v => v.uid === currentUser.uid);
+                                const previousVotes = hasVoted && voterRecord ? voterRecord.vote.split(', ') : [];
+                                const optionsCheckboxes = poll.options.map((option, index) => {
+                                    const percentage = totalVotes > 0 ? Math.round((option.votes || 0) / totalVotes * 100) : 0;
+                                    const isChecked = hasVoted && previousVotes.includes(option.text);
+                                    return `
+                                    <div>
+                                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.25rem;">
+                                            <span class="font-medium">${option.text}</span>
+                                            <span style="color:var(--secondary-text); font-size:0.9rem;">${percentage}%</span>
+                                        </div>
+                                        <div class="poll-option-bar"><div class="poll-option-fill" style="width: ${percentage}%"></div></div>
+                                        <label class="flex items-center gap-3 p-3 mt-3 rounded-md cursor-pointer" style="background-color: var(--surface-color-light);">
+                                            <input type="checkbox" class="poll-option-checkbox-${docSnap.id}" value="${index}" ${isChecked ? 'checked' : ''} style="width: 20px; height: 20px; accent-color: var(--accent-color);">
+                                            <span>Seleziona questa opzione</span>
+                                        </label>
+                                    </div>`;
+                                }).join('');
+                                const submitButton = `<button onclick="voteOnPoll('${docSnap.id}')" class="btn btn-primary w-full mt-4">${buttonText}</button>`;
+                                optionsHtml = `<div class="space-y-4">${optionsCheckboxes}</div>${submitButton}`;
+                            } else {
+                                optionsHtml = `<div class="space-y-4">${poll.options.map((option, index) => {
                                     const percentage = totalVotes > 0 ? Math.round((option.votes || 0) / totalVotes * 100) : 0;
                                     return `
                                     <div>
@@ -2665,11 +2783,55 @@
                                             <span style="color:var(--secondary-text); font-size:0.9rem;">${percentage}%</span>
                                         </div>
                                         <div class="poll-option-bar"><div class="poll-option-fill" style="width: ${percentage}%"></div></div>
-                                        ${showVoteButtons ? `<button onclick="voteOnPoll('${docSnap.id}', ${index})" class="btn btn-secondary" style="width:100%; margin-top:0.75rem;">Vota per "${option.text}"</button>` : ''}
-                                    </div>`
-                                }).join("")}
+                                        <button onclick="voteOnPoll('${docSnap.id}', ${index})" class="btn btn-secondary" style="width:100%; margin-top:0.75rem;">${hasVoted ? 'Vota di nuovo per' : 'Vota per'} "${option.text}"</button>
+                                    </div>`;
+                                }).join("")}</div>`;
+                            }
+                        } else {
+                            optionsHtml = `<div class="space-y-4">${poll.options.map(option => {
+                                const percentage = totalVotes > 0 ? Math.round((option.votes || 0) / totalVotes * 100) : 0;
+                                return `
+                                <div>
+                                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.25rem;">
+                                        <span class="font-medium">${option.text}</span>
+                                        <span style="color:var(--secondary-text); font-size:0.9rem;">${percentage}%</span>
+                                    </div>
+                                    <div class="poll-option-bar"><div class="poll-option-fill" style="width: ${percentage}%"></div></div>
+                                </div>`;
+                            }).join("")}</div>`;
+                        }
+
+                        let votingInstructionHtml = '';
+                        if (showVoteUI) {
+                            let instructionText = poll.multipleChoice ? 'Puoi selezionare più risposte.' : 'Scegli una sola risposta.';
+                            if (hasVoted) {
+                                instructionText = 'Hai già votato. Puoi modificare la tua scelta qui sotto.';
+                            }
+                            votingInstructionHtml = `<p class="form-label" style="margin-bottom: 1rem; color: var(--secondary-text);">${instructionText}</p>`;
+                        }
+
+                        // --- MODIFICA 2: Logica per i pulsanti di azione ---
+                        const actionButtons = [];
+                        actionButtons.push(`<button onclick="showPollVoters('${docSnap.id}')" class="btn btn-secondary" style="flex-grow:1;">Mostra Votanti</button>`);
+                        
+                        if (poll.createdById === currentUser.uid && !isExpired) {
+                            actionButtons.push(`<button onclick="deletePoll('${docSnap.id}')" class="btn" style="background:var(--danger); color:white; flex-grow:1;">Elimina</button>`);
+                        }
+                        const actionButtonsHtml = actionButtons.length > 0 ? `<div class="flex gap-4 mt-4">${actionButtons.join('')}</div>` : '';
+
+                        return `
+                        <div class="card" style="padding:1rem; margin-bottom:1rem;">
+                            <div class="list-item" style="padding:0; margin-bottom:1rem; cursor:default;">
+                                <div class="list-item-icon"><svg fill="currentColor" viewBox="0 0 24 24"><path d="M22,21H2V3H4V19H6V10H10V19H12V6H16V19H18V14H22V21Z"/></svg></div>
+                                <div class="list-item-content">
+                                    <div class="title">${pollTitle}</div>
+                                    <div class="subtitle">${isExpired ? "Sondaggio chiuso" : "Sondaggio attivo"} ${hasVoted ? "· Hai votato" : ""}</div>
+                                </div>
                             </div>
-                            ${showVotersButton}
+                            ${votingInstructionHtml}
+                            ${optionsHtml}
+                            ${dateInfoHtml}
+                            ${actionButtonsHtml}
                         </div>`;
                     }).join("");
                 });
@@ -2889,7 +3051,79 @@
             }
         };
 
-        const voteOnPoll=async(e,t)=>{try{const settingsRef=doc(db,"settings","pollAuthorization"),settingsSnap=await getDoc(settingsRef),pollSetting=settingsSnap.exists()?settingsSnap.data().setting:"option2";if(!isUserAllowedToVote(userProfile.tipoUtente,pollSetting))return alert("Non sei autorizzato a votare in questo sondaggio.");const o=doc(db,"polls",e),n=await getDoc(o);if(!n.exists())return;const i=n.data();if(i.deadline.toDate()<new Date)return alert("Sondaggio scaduto.");if(i.voters?.some(e=>e.uid===currentUser.uid))return alert("Hai già votato!");const d=[...i.options];d[t].votes=(d[t].votes||0)+1;const a=i.options[t].text;const userMillesimi=userProfile?.millesimiTotali||0;const r=[...i.voters||[],{uid:currentUser.uid,name:`${userProfile.nome} ${userProfile.cognome}`,vote:a,millesimi:userMillesimi}];await updateDoc(o,{options:d,voters:r}),await logActivity("poll_voted",currentUser.uid,`${userProfile.nome} ${userProfile.cognome}`,{pollTitle:i.title,option:a})}catch(l){console.error("Errore nel voto:",l)}};
+        const voteOnPoll = async (pollId, optionIndex) => {
+            try {
+                const settingsRef = doc(db, "settings", "pollAuthorization");
+                const settingsSnap = await getDoc(settingsRef);
+                const pollSetting = settingsSnap.exists() ? settingsSnap.data().setting : "option2";
+                if (!isUserAllowedToVote(userProfile.tipoUtente, pollSetting)) {
+                    return alert("Non sei autorizzato a votare in questo sondaggio.");
+                }
+
+                const pollRef = doc(db, "polls", pollId);
+                const pollSnap = await getDoc(pollRef);
+                if (!pollSnap.exists()) return;
+
+                const poll = pollSnap.data();
+                if (poll.deadline.toDate() < new Date()) return alert("Sondaggio scaduto.");
+
+                const updatedOptions = [...poll.options];
+                let updatedVoters = [...poll.voters || []];
+                const voterIndex = updatedVoters.findIndex(v => v.uid === currentUser.uid);
+
+                // Se l'utente ha già votato, annulla il suo voto precedente
+                if (voterIndex > -1) {
+                    const oldVoteRecord = updatedVoters[voterIndex];
+                    const oldChoices = oldVoteRecord.vote.split(', ');
+                    oldChoices.forEach(oldChoiceText => {
+                        const optionToDecrement = updatedOptions.find(opt => opt.text === oldChoiceText);
+                        if (optionToDecrement && optionToDecrement.votes > 0) {
+                            optionToDecrement.votes -= 1;
+                        }
+                    });
+                    // Rimuovi il vecchio record di voto
+                    updatedVoters.splice(voterIndex, 1);
+                }
+
+                // Applica il nuovo voto
+                let newSelectedOptionsText = [];
+                if (typeof optionIndex !== 'undefined') { // Risposta singola
+                    updatedOptions[optionIndex].votes = (updatedOptions[optionIndex].votes || 0) + 1;
+                    newSelectedOptionsText.push(poll.options[optionIndex].text);
+                } else { // Risposta multipla
+                    const checkedBoxes = document.querySelectorAll(`.poll-option-checkbox-${pollId}:checked`);
+                    if (checkedBoxes.length === 0) return alert("Seleziona almeno un'opzione per votare.");
+                    
+                    checkedBoxes.forEach(box => {
+                        const idx = parseInt(box.value, 10);
+                        if (!isNaN(idx) && updatedOptions[idx]) {
+                            updatedOptions[idx].votes = (updatedOptions[idx].votes || 0) + 1;
+                            newSelectedOptionsText.push(poll.options[idx].text);
+                        }
+                    });
+                }
+
+                // Aggiungi il nuovo record di voto
+                const userMillesimi = userProfile?.millesimiTotali || 0;
+                updatedVoters.push({
+                    uid: currentUser.uid,
+                    name: `${userProfile.nome} ${userProfile.cognome}`,
+                    vote: newSelectedOptionsText.join(', '),
+                    millesimi: userMillesimi
+                });
+
+                await updateDoc(pollRef, { options: updatedOptions, voters: updatedVoters });
+                await logActivity("poll_voted", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, {
+                    pollTitle: poll.title,
+                    option: newSelectedOptionsText.join(', '),
+                    isChange: voterIndex > -1
+                });
+
+            } catch (error) {
+                console.error("Errore nel voto:", error);
+                alert("Si è verificato un errore durante il voto.");
+            }
+        };
 
         const updateReportStatus=async(e,t)=>{try{await updateDoc(doc(db,"reports",e),{status:t,updatedAt:serverTimestamp()}),await logActivity("report_updated",currentUser.uid,`${userProfile.nome} ${userProfile.cognome}`,{reportId:e,newStatus:t})}catch(o){console.error("Errore nell'aggiornamento:",o)}};
         const updateNotificationUI=e=>{const t=document.getElementById("bacheca-notification-badge");t?.classList.toggle("hidden",!e)};
@@ -2911,7 +3145,21 @@
         window.loadElencoCondomini = loadElencoCondomini;
         window.deleteUser = deleteUser;
         window.openUserEditModal = openUserEditModal;
+        const deletePoll = async (pollId) => {
+            if (!confirm('Sei sicuro di voler eliminare questo sondaggio? L\'azione è irreversibile e cancellerà tutti i voti associati.')) {
+                return;
+            }
+            try {
+                await deleteDoc(doc(db, 'polls', pollId));
+                await logActivity("poll_deleted", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { deletedPollId: pollId });
+            } catch (error) {
+                console.error("Errore durante l'eliminazione del sondaggio:", error);
+                alert("Si è verificato un errore durante l'eliminazione.");
+            }
+        };
+
         window.updateUser = updateUser;
+        window.deletePoll = deletePoll;
 
         // --- FUNZIONE onAuthStateChanged CORRETTA E ROBUSTA ---
         onAuthStateChanged(auth, async (user) => {
