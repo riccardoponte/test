@@ -580,6 +580,7 @@
         let userProfile = null;
         let currentPage = 'login';
         let communicationsListener = null;
+        let navigationHistory = [];
 
         // Stato per la registrazione, reso globale a livello di modulo per un reset corretto
         let groupedProperties = {};
@@ -626,6 +627,11 @@
         
         const navigateTo=(e)=>{
             const userType = userProfile?.tipoUtente;
+
+            if (navigationHistory[navigationHistory.length - 1] !== e) {
+                navigationHistory.push(e);
+            }
+
             if (['supervisore', 'adm'].includes(userType) && ['userManagement', 'gestioneGruppi', 'importazione'].includes(e)) {
                  currentPage = e;
                  renderCurrentPage();
@@ -637,6 +643,15 @@
                 currentPage=e,renderCurrentPage();
             }
         };
+
+        const navigateBack = () => {
+            if (navigationHistory.length > 1) {
+                navigationHistory.pop(); // Rimuove la pagina corrente dalla cronologia
+                currentPage = navigationHistory[navigationHistory.length - 1]; // La pagina precedente diventa quella corrente
+                renderCurrentPage();
+            }
+            // Non fa nulla se non c'è una pagina precedente
+        };
         
         const getPriorityColor=t=>({alta:"priority-alta",media:"priority-media",bassa:"priority-bassa"}[t]||"priority-bassa");
         const getStatusColor=t=>({aperta:"status-aperta","in-corso":"status-in-corso",chiusa:"status-chiusa"}[t]||"status-aperta");
@@ -644,8 +659,16 @@
         const renderHeader = (title) => {
             const userInitial = userProfile?.nome ? userProfile.nome.charAt(0).toUpperCase() : 'U';
             const userType = userProfile?.tipoUtente || '';
+
+            const backButtonHtml = navigationHistory.length > 1 ? `
+                <button onclick="navigateBack()" style="background:none; border:none; color:var(--primary-text); cursor:pointer; padding:0;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+                </button>
+            ` : '';
+
             return `
             <header class="page-header">
+                ${backButtonHtml}
                 <div class="user-avatar">${userInitial}</div>
                 <div>
                     <h1 class="page-title">${title}</h1>
@@ -2741,6 +2764,7 @@
         const checkForNewCommunications=()=>{if(!currentUser||"custode"===userProfile?.tipoUtente)return;communicationsListener&&communicationsListener();const e=parseInt(localStorage.getItem(`lastSeenComm_${currentUser.uid}`),10)||0,t=new Date(e),o=query(collection(db,"communications"),where("createdAt",">",t));communicationsListener=onSnapshot(o,e=>{updateNotificationUI(!e.empty)})};
         
         window.navigateTo = navigateTo;
+        window.navigateBack = navigateBack;
         window.logout = logout;
         window.voteOnPoll = voteOnPoll;
         window.updateReportStatus = updateReportStatus;
@@ -2781,6 +2805,7 @@
                 }
                 currentUser = null; 
                 userProfile = null;
+                navigationHistory = []; // Resetta la cronologia al logout
                 // Resetta lo stato specifico della registrazione per evitare dati "sporchi"
                 groupedProperties = {};
                 partialCondosList = [];
