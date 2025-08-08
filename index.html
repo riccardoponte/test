@@ -788,7 +788,7 @@
                     <a href="#" onclick="navigateTo('dashboard')" class="nav-item ${currentPage === 'dashboard' ? 'active' : ''}"><svg fill="currentColor" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg><span>Home</span></a>
                     <a href="#" onclick="navigateTo('bacheca')" id="nav-item-bacheca" class="nav-item ${currentPage === 'bacheca' ? 'active' : ''}"><span id="bacheca-notification-badge" class="notification-badge hidden"></span><svg fill="currentColor" viewBox="0 0 24 24"><path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/></svg><span>Bacheca</span></a>
                     <a href="#" onclick="navigateTo('segnalazioni')" class="nav-item ${currentPage === 'segnalazioni' ? 'active' : ''}"><svg fill="currentColor" viewBox="0 0 24 24"><path d="M12,2L13.09,8.26L22,9L13.09,9.74L12,16L10.91,9.74L2,9L10.91,8.26L12,2Z"/></svg><span>Segnala</span></a>
-                    <a href="#" onclick="navigateTo('sondaggi')" class="nav-item ${currentPage === 'sondaggi' ? 'active' : ''}"><svg fill="currentColor" viewBox="0 0 24 24"><path d="M22,21H2V3H4V19H6V10H10V19H12V6H16V19H18V14H22V21Z"/></svg><span>Sondaggi</span></a>
+                    <a href="#" onclick="navigateTo('sondaggi')" class="nav-item ${['sondaggi', 'sondaggi_crea', 'sondaggi_elenco'].includes(currentPage) ? 'active' : ''}"><svg fill="currentColor" viewBox="0 0 24 24"><path d="M22,21H2V3H4V19H6V10H10V19H12V6H16V19H18V14H22V21Z"/></svg><span>Sondaggi</span></a>
                     <a href="#" onclick="navigateTo('profilo')" class="nav-item ${currentPage === 'profilo' ? 'active' : ''}"><svg fill="currentColor" viewBox="0 0 24 24"><path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/></svg><span>Profilo</span></a>
                 `;
             return `<nav class="bottom-nav">${navItems}</nav>`;
@@ -852,10 +852,31 @@
             ${renderBottomNavigation()}
         `;
 
-        const renderSondaggi = () => `
+        const renderSondaggiMenu = () => `
             ${renderHeader('Sondaggi')}
             <main>
-                <div class="card" style="margin-bottom:2rem;">
+                <div class="dashboard-grid">
+                    <div onclick="navigateTo('sondaggi_crea')" class="dashboard-item">
+                        <div class="dashboard-card">
+                            <svg fill="currentColor" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+                        </div>
+                        <p>Crea Nuovo Sondaggio</p>
+                    </div>
+                    <div onclick="navigateTo('sondaggi_elenco')" class="dashboard-item">
+                        <div class="dashboard-card">
+                            <svg fill="currentColor" viewBox="0 0 24 24"><path d="M22,21H2V3H4V19H6V10H10V19H12V6H16V19H18V14H22V21Z"/></svg>
+                        </div>
+                        <p>Elenco Sondaggi</p>
+                    </div>
+                </div>
+            </main>
+            ${renderBottomNavigation()}
+        `;
+
+        const renderSondaggiCrea = () => `
+            ${renderHeader('Crea Sondaggio')}
+            <main>
+                <div class="card">
                     <h3 class="card-title">Crea un Nuovo Sondaggio</h3>
                     <form id="create-poll-form" class="space-y-4">
                         <div><label class="form-label">Titolo</label><input type="text" id="poll-title" required class="form-input"></div>
@@ -874,6 +895,13 @@
                         <div class="flex justify-end gap-4 pt-4"><button type="reset" class="btn btn-secondary">Annulla</button><button type="submit" class="btn btn-primary">Crea</button></div>
                     </form>
                 </div>
+            </main>
+            ${renderBottomNavigation()}
+        `;
+
+        const renderSondaggiElenco = () => `
+            ${renderHeader('Elenco Sondaggi')}
+            <main>
                 <div id="polls-container" class="list-container"></div>
             </main>
             ${renderBottomNavigation()}
@@ -1550,7 +1578,9 @@
             switch (currentPage) {
                 case 'dashboard': content = renderDashboard(); break;
                 case 'bacheca': content = renderBacheca(); break;
-                case 'sondaggi': if (userType !== 'custode') { content = renderSondaggi(); } break;
+                case 'sondaggi': if (userType !== 'custode') { content = renderSondaggiMenu(); } break;
+                case 'sondaggi_crea': if (userType !== 'custode') { content = renderSondaggiCrea(); } break;
+                case 'sondaggi_elenco': if (userType !== 'custode') { content = renderSondaggiElenco(); } break;
                 case 'segnalazioni': content = renderSegnalazioni(); break;
                 case 'profilo': content = renderProfilo(); break;
                 case 'infoUtili': content = renderInfoUtili(); break;
@@ -1594,7 +1624,9 @@
             switch (currentPage) {
                 case 'elencoCondomini': loadElencoCondomini(); break;
                 case 'bacheca': loadCommunications(); setupBachecaHandlers(); break;
-                case 'sondaggi': if (userType !== 'custode') { loadPolls(); setupPollHandlers(); } break;
+                case 'sondaggi': /* No handlers needed for the menu page */ break;
+                case 'sondaggi_crea': if (userType !== 'custode') { setupPollHandlers(); } break;
+                case 'sondaggi_elenco': if (userType !== 'custode') { loadPolls(); } break;
                 case 'segnalazioni': loadReports(); setupReportHandlers(); break;
                 case 'profilo': setupProfileHandlers(); break;
                 case 'infoUtili': /* No handlers needed for the menu page */ break;
@@ -2705,30 +2737,13 @@
         const loadPolls = () => {
             const container = document.getElementById("polls-container");
             if (!container) return;
-            const creationCard = document.getElementById('create-poll-form')?.closest('.card');
-            if (creationCard) {
-                creationCard.classList.add('hidden');
-                const creationSettingsRef = doc(db, "settings", "pollCreationAuthorization");
-                getDoc(creationSettingsRef).then(settingsSnap => {
-                    const creationSetting = settingsSnap.exists() ? settingsSnap.data().setting : 'option1';
-                    const allowedRoles = {
-                        option1: ['supervisore', 'amministratore', 'consigliere'],
-                        option2: ['supervisore', 'amministratore', 'consigliere', 'condomino'],
-                        option3: ['supervisore', 'consigliere']
-                    };
-                    const rolesForCreation = allowedRoles[creationSetting] || allowedRoles.option1;
-                    if (rolesForCreation.includes(userProfile.tipoUtente)) {
-                        creationCard.classList.remove('hidden');
-                    }
-                });
-            }
             const settingsRef = doc(db, "settings", "pollAuthorization");
             getDoc(settingsRef).then(settingsSnap => {
                 const pollSetting = settingsSnap.exists() ? settingsSnap.data().setting : 'option2';
                 const canUserVote = isUserAllowedToVote(userProfile.tipoUtente, pollSetting);
                 const q = query(collection(db, "polls"), orderBy("createdAt", "desc"));
                 onSnapshot(q, snapshot => {
-                    container.innerHTML = snapshot.empty ? `<p style="color:var(--secondary-text); padding: 1rem 0;">Nessun sondaggio.</p>` : snapshot.docs.map(docSnap => {
+                    container.innerHTML = snapshot.empty ? `<div class="card"><p style="color:var(--secondary-text); padding: 1rem 0;">Nessun sondaggio disponibile.</p></div>` : snapshot.docs.map(docSnap => {
                         const poll = docSnap.data();
                         if (!poll.deadline) return "";
                         const deadline = poll.deadline.toDate();
@@ -2740,7 +2755,6 @@
                         const pollTitle = poll.pollNumber ? `Sondaggio N. ${poll.pollNumber}: ${poll.title}` : poll.title;
                         const buttonText = hasVoted ? 'Cambia Voto' : 'Invia Voto';
 
-                        // --- MODIFICA 1: Formattazione e HTML per le date ---
                         const dateOptions = { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' };
                         const creationDate = poll.createdAt ? poll.createdAt.toDate().toLocaleString("it-IT", dateOptions) : 'N/D';
                         const closingDate = poll.deadline ? deadline.toLocaleString("it-IT", dateOptions) : 'N/D';
@@ -2810,7 +2824,6 @@
                             votingInstructionHtml = `<p class="form-label" style="margin-bottom: 1rem; color: var(--secondary-text);">${instructionText}</p>`;
                         }
 
-                        // --- MODIFICA 2: Logica per i pulsanti di azione ---
                         const actionButtons = [];
                         actionButtons.push(`<button onclick="showPollVoters('${docSnap.id}')" class="btn btn-secondary" style="flex-grow:1;">Mostra Votanti</button>`);
                         
