@@ -878,6 +878,7 @@
             <main>
                 <div class="card">
                     <h3 class="card-title">Crea un Nuovo Sondaggio</h3>
+                    <div id="poll-creation-message" class="message-box"></div>
                     <form id="create-poll-form" class="space-y-4">
                         <div><label class="form-label">Titolo</label><input type="text" id="poll-title" required class="form-input"></div>
                         <div><label class="form-label">Descrizione (opzionale)</label><textarea id="poll-description" rows="3" class="form-textarea"></textarea></div>
@@ -1021,6 +1022,7 @@
                     <div><label for="nu-title" class="form-label">Intervento richiesto</label><input type="text" id="nu-title" required class="form-input" placeholder="Es. Idraulico, Elettricista..."></div>
                     <div><label for="nu-company" class="form-label">Impresa (Opzionale)</label><input type="text" id="nu-company" class="form-input" placeholder="Nome dell'azienda"></div>
                     <div><label for="nu-number" class="form-label">1 num. Telefonico</label><input type="text" id="nu-number" required class="form-input" placeholder="Numero di telefono principale"></div>
+                    <div><label for="nu-number-2" class="form-label">2 num. Telefonico (Opzionale)</label><input type="text" id="nu-number-2" class="form-input" placeholder="Numero di telefono secondario"></div>
                     <div class="flex justify-end"><button type="submit" class="btn btn-primary">Aggiungi Contatto</button></div>
                 </form>
             ` : '';
@@ -1038,11 +1040,12 @@
                                     <th>Intervento richiesto</th>
                                     <th>Impresa</th>
                                     <th>1 num.Telefonico</th>
+                                    <th>2 num.Telefonico</th>
                                     <th style="text-align:right;">Azione</th>
                                 </tr>
                             </thead>
                             <tbody id="useful-numbers-table-body">
-                                <tr><td colspan="4" style="text-align:center; color:var(--secondary-text);">Caricamento contatti...</td></tr>
+                                <tr><td colspan="5" style="text-align:center; color:var(--secondary-text);">Caricamento contatti...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -1083,6 +1086,7 @@
                 <div class="filter-chips-container" style="margin-bottom: 1.5rem;">
                     <div id="report-mode-confronto" class="chip active" onclick="loadElencoCondomini('confronto')">Confronto Dati</div>
                     <div id="report-mode-complessiva" class="chip" onclick="loadElencoCondomini('complessiva')">Riepilogo Complessivo</div>
+                    <div id="report-mode-anagrafica" class="chip" onclick="loadElencoCondomini('anagrafica')">Riepilogo Anagrafica</div>
                 </div>
                 <div id="elenco-condomini-container">
                     <div class="card"><p>Caricamento elenco in corso...</p></div>
@@ -1095,9 +1099,11 @@
             // --- 1. Aggiornamento UI per la selezione della modalità ---
             const confrontoBtn = document.getElementById('report-mode-confronto');
             const complessivaBtn = document.getElementById('report-mode-complessiva');
-            if (confrontoBtn && complessivaBtn) {
+            const anagraficaBtn = document.getElementById('report-mode-anagrafica');
+            if (confrontoBtn && complessivaBtn && anagraficaBtn) {
                 confrontoBtn.classList.toggle('active', mode === 'confronto');
                 complessivaBtn.classList.toggle('active', mode === 'complessiva');
+                anagraficaBtn.classList.toggle('active', mode === 'anagrafica');
             }
 
             const container = document.getElementById('elenco-condomini-container');
@@ -1112,159 +1118,105 @@
                     getDocs(query(collection(db, "partialCondos"), orderBy("name")))
                 ]);
 
-                if (importedDataSnapshot.empty) {
+                if (mode !== 'anagrafica' && importedDataSnapshot.empty) {
                     container.innerHTML = `<div class="card"><p class="message-box error" style="display:block;">Dati delle proprietà non trovati. Eseguire prima l'importazione.</p></div>`;
                     return;
                 }
 
                 // --- 3. Preparazione Dati ---
-                const allProperties = importedDataSnapshot.docs[0].data().tableData;
+                const allProperties = !importedDataSnapshot.empty ? importedDataSnapshot.docs[0].data().tableData : [];
                 const partialCondosList = partialCondosSnapshot.docs.map(doc => doc.data());
                 const headers = Object.keys(allProperties[0] || {});
                 const findHeader = (h, k) => h.find(header => k.map(key => key.toLowerCase()).includes(header.toLowerCase()));
-                const apartmentHeader = findHeader(headers, ['interno', 'appartamento', 'unita']);
                 const millesimiHeader = findHeader(headers, ['millesimi', 'quota']);
-                const groupHeader = findHeader(headers, ['raggruppamento', 'gruppo']); // MODIFICA: Trova l'intestazione del gruppo
+                const groupHeader = findHeader(headers, ['raggruppamento', 'gruppo']);
 
-                // --- 4. Logica di Raggruppamento ---
-                const groupedData = {};
-                // Inizializza i gruppi basandosi sui gruppi esistenti (da partialCondos) per assicurarsi che appaiano anche se vuoti
-                partialCondosList.forEach(condo => {
-                    groupedData[condo.name] = { users: [], totalMillesimiImport: 0, totalPropertiesImport: 0 };
-                });
-                if (!groupedData['Senza Gruppo']) {
-                    groupedData['Senza Gruppo'] = { users: [], totalMillesimiImport: 0, totalPropertiesImport: 0 };
-                }
+                // --- 4. Logica di Raggruppamento e Generazione HTML ---
+                let html = '';
 
-                // Raggruppa gli utenti registrati
-                usersSnapshot.docs.forEach(doc => {
-                    const user = doc.data();
-                    user.proprieta?.forEach(prop => {
-                        const groupName = prop.gruppo || 'Senza Gruppo';
-                        if (!groupedData[groupName]) {
-                            // Aggiunge un gruppo se non è stato pre-inizializzato (potrebbe accadere se un gruppo viene eliminato ma ancora assegnato a un utente)
-                            groupedData[groupName] = { users: [], totalMillesimiImport: 0, totalPropertiesImport: 0 };
-                        }
-                        groupedData[groupName].users.push({
-                            idUI: prop.interno,
-                            proprietario: `${user.nome} ${user.cognome}`,
-                            millesimi: parseFloat(prop.millesimi) || 0
+                if (mode === 'anagrafica') {
+                    html = `<h2 class="section-title">Riepilogo Anagrafica Utenti Registrati</h2>`;
+                    if (usersSnapshot.empty) {
+                        html += `<div class="card"><p>Nessun utente registrato.</p></div>`;
+                    } else {
+                        html += `<div class="card" style="padding:0;"><div class="data-table-container"><table class="data-table">
+                                    <thead><tr><th>Cognome e Nome</th><th>Email</th><th>Proprietà</th><th style="text-align:right;">Millesimi Tot.</th></tr></thead>
+                                    <tbody>`;
+                        usersSnapshot.docs.forEach(doc => {
+                            const user = doc.data();
+                            const propertiesHtml = user.proprieta && user.proprieta.length > 0
+                                ? user.proprieta.map(p => `<div>${p.interno} (${(p.millesimi || 0).toFixed(2)} ‰)</div>`).join('')
+                                : 'N/D';
+                            html += `
+                                <tr>
+                                    <td>${user.cognome} ${user.nome}</td>
+                                    <td>${user.email}</td>
+                                    <td>${propertiesHtml}</td>
+                                    <td style="text-align:right;">${(user.millesimiTotali || 0).toFixed(2).replace('.', ',')}</td>
+                                </tr>
+                            `;
+                        });
+                        html += `</tbody></table></div></div>`;
+                    }
+                } else {
+                    const groupedData = {};
+                    partialCondosList.forEach(condo => {
+                        groupedData[condo.name] = { users: [], totalMillesimiImport: 0, totalPropertiesImport: 0 };
+                    });
+                    if (!groupedData['Senza Gruppo']) {
+                        groupedData['Senza Gruppo'] = { users: [], totalMillesimiImport: 0, totalPropertiesImport: 0 };
+                    }
+
+                    usersSnapshot.docs.forEach(doc => {
+                        const user = doc.data();
+                        user.proprieta?.forEach(prop => {
+                            const groupName = prop.gruppo || 'Senza Gruppo';
+                            if (!groupedData[groupName]) {
+                                groupedData[groupName] = { users: [], totalMillesimiImport: 0, totalPropertiesImport: 0 };
+                            }
+                            groupedData[groupName].users.push({
+                                idUI: prop.interno,
+                                proprietario: `${user.nome} ${user.cognome}`,
+                                millesimi: parseFloat(prop.millesimi) || 0
+                            });
                         });
                     });
-                });
 
-                // Raggruppa i dati importati basandosi sulla colonna 'Raggruppamento'
-                allProperties.forEach(prop => {
-                    // MODIFICA: Usa la colonna 'Raggruppamento' per determinare il gruppo.
-                    const groupName = (groupHeader && prop[groupHeader]) ? prop[groupHeader] : 'Senza Gruppo';
-                    
-                    if (!groupedData[groupName]) {
-                        // Aggiunge un gruppo se non esiste (es. un nuovo gruppo definito solo nel file Excel)
-                        groupedData[groupName] = { users: [], totalMillesimiImport: 0, totalPropertiesImport: 0 };
+                    allProperties.forEach(prop => {
+                        const groupName = (groupHeader && prop[groupHeader]) ? prop[groupHeader] : 'Senza Gruppo';
+                        if (!groupedData[groupName]) {
+                            groupedData[groupName] = { users: [], totalMillesimiImport: 0, totalPropertiesImport: 0 };
+                        }
+                        groupedData[groupName].totalMillesimiImport += parseFloat(prop[millesimiHeader]) || 0;
+                        groupedData[groupName].totalPropertiesImport += 1;
+                    });
+
+                    const grandTotalAllMillesimi = Object.values(groupedData).reduce((sum, group) => sum + group.totalMillesimiImport, 0);
+                    const grandTotalProperties = Object.values(groupedData).reduce((sum, group) => sum + group.totalPropertiesImport, 0);
+
+                    if (mode === 'confronto') {
+                        html = `<h2 class="section-title">Confronto Dati Registrati vs. Importati</h2>`;
+                        let grandTotalAccounts = 0;
+                        let grandTotalAccountMillesimi = 0;
+
+                        for (const groupName in groupedData) {
+                            const group = groupedData[groupName];
+                            if (group.users.length === 0 && group.totalPropertiesImport === 0) continue;
+                            const accountSubtotalMillesimi = group.users.reduce((sum, u) => sum + u.millesimi, 0);
+                            grandTotalAccounts += group.users.length;
+                            grandTotalAccountMillesimi += accountSubtotalMillesimi;
+                            html += `<div class="card" style="margin-bottom: 1.5rem;"><h3 class="card-title" style="text-transform: capitalize;">${groupName.toLowerCase()}</h3><div class="data-table-container"><table class="data-table"><thead><tr><th>Id U.I.</th><th>Proprietario Registrato</th><th style="text-align:right;">Millesimi</th></tr></thead><tbody>${group.users.length > 0 ? group.users.map(u => `<tr><td>${u.idUI}</td><td>${u.proprietario}</td><td style="text-align:right;">${u.millesimi.toFixed(2).replace('.', ',')}</td></tr>`).join('') : `<tr><td colspan="3" style="color:var(--secondary-text); text-align:center;">Nessun account registrato per questo gruppo.</td></tr>`}<tr style="font-weight:bold; background-color: var(--surface-color-light);"><td>Totale Account Registrati</td><td style="text-align:right;">${group.users.length}</td><td style="text-align:right;">${accountSubtotalMillesimi.toFixed(2).replace('.', ',')}</td></tr><tr style="font-weight:bold; background-color: var(--surface-color-light);"><td>Totale Unità da Import</td><td style="text-align:right;">${group.totalPropertiesImport}</td><td style="text-align:right;">${group.totalMillesimiImport.toFixed(2).replace('.', ',')}</td></tr></tbody></table></div></div>`;
+                        }
+                        html += `<div class="card" style="margin-bottom: 1.5rem;"><h3 class="card-title">Riepilogo Complessivo Confronto</h3><div class="data-table-container"><table class="data-table"><tbody><tr style="font-weight:bold; background-color: var(--surface-color-light);"><td>Totale Account Registrati</td><td style="text-align:right;">${grandTotalAccounts}</td><td style="text-align:right;">${grandTotalAccountMillesimi.toFixed(2).replace('.', ',')}</td></tr><tr style="font-weight:bold; background-color: var(--surface-color-light);"><td>Totale Unità da Import</td><td style="text-align:right;">${grandTotalProperties}</td><td style="text-align:right;">${grandTotalAllMillesimi.toFixed(2).replace('.', ',')}</td></tr></tbody></table></div></div>`;
+                    } else { // mode === 'complessiva'
+                        html = `<h2 class="section-title">Riepilogo Complessivo Dati Importati</h2><div class="card" style="margin-bottom: 1.5rem;"><div class="data-table-container"><table class="data-table"><thead><tr><th>Gruppo / Scala</th><th style="text-align:right;">N. Unità (Teste)</th><th style="text-align:right;">Somma Millesimi</th></tr></thead><tbody>`;
+                        for (const groupName in groupedData) {
+                            const group = groupedData[groupName];
+                            if (group.totalPropertiesImport === 0) continue;
+                            html += `<tr><td style="text-transform: capitalize;">${groupName.toLowerCase()}</td><td style="text-align:right;">${group.totalPropertiesImport}</td><td style="text-align:right;">${group.totalMillesimiImport.toFixed(2).replace('.', ',')}</td></tr>`;
+                        }
+                        html += `<tr style="font-weight:bold; background-color: var(--surface-color-light);"><td>Totale Complessivo</td><td style="text-align:right;">${grandTotalProperties}</td><td style="text-align:right;">${grandTotalAllMillesimi.toFixed(2).replace('.', ',')}</td></tr></tbody></table></div></div>`;
                     }
-                    groupedData[groupName].totalMillesimiImport += parseFloat(prop[millesimiHeader]) || 0;
-                    groupedData[groupName].totalPropertiesImport += 1;
-                });
-
-                // --- 5. Generazione HTML in base alla modalità ---
-                let html = '';
-                const grandTotalAllMillesimi = Object.values(groupedData).reduce((sum, group) => sum + group.totalMillesimiImport, 0);
-                const grandTotalProperties = Object.values(groupedData).reduce((sum, group) => sum + group.totalPropertiesImport, 0);
-
-                if (mode === 'confronto') {
-                    html = `<h2 class="section-title">Confronto Dati Registrati vs. Importati</h2>`;
-                    let grandTotalAccounts = 0;
-                    let grandTotalAccountMillesimi = 0;
-
-                    for (const groupName in groupedData) {
-                        const group = groupedData[groupName];
-                        if (group.users.length === 0 && group.totalPropertiesImport === 0) continue;
-
-                        const accountSubtotalMillesimi = group.users.reduce((sum, u) => sum + u.millesimi, 0);
-                        grandTotalAccounts += group.users.length;
-                        grandTotalAccountMillesimi += accountSubtotalMillesimi;
-
-                        html += `
-                            <div class="card" style="margin-bottom: 1.5rem;">
-                                <h3 class="card-title" style="text-transform: capitalize;">${groupName.toLowerCase()}</h3>
-                                <div class="data-table-container">
-                                    <table class="data-table">
-                                        <thead><tr><th>Id U.I.</th><th>Proprietario Registrato</th><th style="text-align:right;">Millesimi</th></tr></thead>
-                                        <tbody>
-                                            ${group.users.length > 0 ? group.users.map(u => `
-                                                <tr><td>${u.idUI}</td><td>${u.proprietario}</td><td style="text-align:right;">${u.millesimi.toFixed(2).replace('.', ',')}</td></tr>
-                                            `).join('') : `<tr><td colspan="3" style="color:var(--secondary-text); text-align:center;">Nessun account registrato per questo gruppo.</td></tr>`}
-                                            <tr style="font-weight:bold; background-color: var(--surface-color-light);">
-                                                <td>Totale Account Registrati</td>
-                                                <td style="text-align:right;">${group.users.length}</td>
-                                                <td style="text-align:right;">${accountSubtotalMillesimi.toFixed(2).replace('.', ',')}</td>
-                                            </tr>
-                                            <tr style="font-weight:bold; background-color: var(--surface-color-light);">
-                                                <td>Totale Unità da Import</td>
-                                                <td style="text-align:right;">${group.totalPropertiesImport}</td>
-                                                <td style="text-align:right;">${group.totalMillesimiImport.toFixed(2).replace('.', ',')}</td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        `;
-                    }
-                    
-                    html += `
-                        <div class="card" style="margin-bottom: 1.5rem;">
-                            <h3 class="card-title">Riepilogo Complessivo Confronto</h3>
-                            <div class="data-table-container">
-                                <table class="data-table">
-                                    <tbody>
-                                        <tr style="font-weight:bold; background-color: var(--surface-color-light);">
-                                            <td>Totale Account Registrati</td>
-                                            <td style="text-align:right;">${grandTotalAccounts}</td>
-                                            <td style="text-align:right;">${grandTotalAccountMillesimi.toFixed(2).replace('.', ',')}</td>
-                                        </tr>
-                                        <tr style="font-weight:bold; background-color: var(--surface-color-light);">
-                                            <td>Totale Unità da Import</td>
-                                            <td style="text-align:right;">${grandTotalProperties}</td>
-                                            <td style="text-align:right;">${grandTotalAllMillesimi.toFixed(2).replace('.', ',')}</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    `;
-
-                } else { // mode === 'complessiva'
-                    html = `<h2 class="section-title">Riepilogo Complessivo Dati Importati</h2>
-                        <div class="card" style="margin-bottom: 1.5rem;">
-                            <div class="data-table-container">
-                                <table class="data-table">
-                                    <thead><tr><th>Gruppo / Scala</th><th style="text-align:right;">N. Unità (Teste)</th><th style="text-align:right;">Somma Millesimi</th></tr></thead>
-                                    <tbody>
-                    `;
-
-                    for (const groupName in groupedData) {
-                        const group = groupedData[groupName];
-                        if (group.totalPropertiesImport === 0) continue;
-                        html += `
-                            <tr>
-                                <td style="text-transform: capitalize;">${groupName.toLowerCase()}</td>
-                                <td style="text-align:right;">${group.totalPropertiesImport}</td>
-                                <td style="text-align:right;">${group.totalMillesimiImport.toFixed(2).replace('.', ',')}</td>
-                            </tr>
-                        `;
-                    }
-
-                    html += `
-                                        <tr style="font-weight:bold; background-color: var(--surface-color-light);">
-                                            <td>Totale Complessivo</td>
-                                            <td style="text-align:right;">${grandTotalProperties}</td>
-                                            <td style="text-align:right;">${grandTotalAllMillesimi.toFixed(2).replace('.', ',')}</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    `;
                 }
 
                 container.innerHTML = html;
@@ -1926,6 +1878,9 @@
 
             form.addEventListener("submit", async (event) => {
                 event.preventDefault();
+                const messageBox = document.getElementById('poll-creation-message');
+                messageBox.style.display = 'none';
+
                 const title = document.getElementById("poll-title").value;
                 const description = document.getElementById("poll-description").value;
                 const deadlineDate = document.getElementById("poll-deadline").value;
@@ -1941,37 +1896,39 @@
                 const deadline = new Date(deadlineISO);
 
                 try {
-                    await runTransaction(db, async (transaction) => {
-                        const counterRef = doc(db, "counters", "polls");
-                        const pollCollectionRef = collection(db, "polls");
-                        const newPollRef = doc(pollCollectionRef); // Genera un ID per il nuovo sondaggio
+                    const pollsQuery = query(collection(db, "polls"), orderBy("pollNumber", "desc"), limit(1));
+                    const lastPollsSnapshot = await getDocs(pollsQuery);
+                    const lastPollNumber = lastPollsSnapshot.empty ? 0 : lastPollsSnapshot.docs[0].data().pollNumber;
+                    const newPollNumber = lastPollNumber + 1;
 
-                        const counterDoc = await transaction.get(counterRef);
-                        const newPollNumber = (counterDoc.exists() ? counterDoc.data().count : 0) + 1;
+                    const pollData = {
+                        pollNumber: newPollNumber,
+                        title: title,
+                        description: description,
+                        options: options,
+                        deadline: deadline,
+                        multipleChoice: isMultipleChoice,
+                        createdBy: `${userProfile.nome} ${userProfile.cognome}`,
+                        createdById: currentUser.uid,
+                        createdAt: serverTimestamp(),
+                        voters: []
+                    };
 
-                        const pollData = {
-                            pollNumber: newPollNumber,
-                            title: title,
-                            description: description,
-                            options: options,
-                            deadline: deadline,
-                            multipleChoice: isMultipleChoice,
-                            createdBy: `${userProfile.nome} ${userProfile.cognome}`,
-                            createdById: currentUser.uid,
-                            createdAt: serverTimestamp(),
-                            voters: []
-                        };
-
-                        transaction.set(newPollRef, pollData);
-                        transaction.set(counterRef, { count: newPollNumber });
-                    });
-
+                    await addDoc(collection(db, "polls"), pollData);
                     await logActivity("poll_created", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { title: title });
+                    
                     form.reset();
+                    
+                    messageBox.className = 'message-box success';
+                    messageBox.textContent = 'Sondaggio creato con successo!';
+                    messageBox.style.display = 'block';
+                    setTimeout(() => { messageBox.style.display = 'none'; }, 4000);
 
                 } catch (error) {
                     console.error("Errore nella creazione del sondaggio:", error);
-                    alert("Si è verificato un errore durante la creazione del sondaggio.");
+                    messageBox.className = 'message-box error';
+                    messageBox.textContent = `Errore: ${error.message}`;
+                    messageBox.style.display = 'block';
                 }
             });
 
@@ -1994,12 +1951,13 @@
                     const title = document.getElementById('nu-title').value.trim();
                     const company = document.getElementById('nu-company').value.trim();
                     const number = document.getElementById('nu-number').value.trim();
+                    const number2 = document.getElementById('nu-number-2').value.trim();
                     if (!title || !number) {
-                        alert('I campi "Intervento richiesto" e "Numero Telefonico" sono obbligatori.');
+                        alert('I campi "Intervento richiesto" e "1 num. Telefonico" sono obbligatori.');
                         return;
                     }
                     try {
-                        await addDoc(collection(db, 'usefulNumbers'), { title, company, number, createdBy: currentUser.uid, createdAt: serverTimestamp() });
+                        await addDoc(collection(db, 'usefulNumbers'), { title, company, number, number2, createdBy: currentUser.uid, createdAt: serverTimestamp() });
                         await logActivity("useful_number_added", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { title });
                         manualForm.reset();
                     } catch (error) {
@@ -2861,7 +2819,7 @@
         };
 
         const deleteUser = async (userId, userName) => {
-            if (!confirm(`Sei sicuro di voler eliminare l'utente ${userName}? Questa azione eliminerà il suo profilo dal database, ma non il suo account di accesso. L'utente non potrà più accedere ai dati dell'app. L'azione è irreversibile.`)) {
+            if (!confirm(`Sei sicuro di voler eliminare l'utente ${userName}? L'utente verrà rimosso dal sistema e non potrà più accedere. L'azione è irreversibile.`)) {
                 return;
             }
             try {
@@ -3027,13 +2985,13 @@
                 const qManual = query(collection(db, "usefulNumbers"), orderBy("createdAt", "desc"));
                 onSnapshot(qManual, (snapshot) => {
                     if (snapshot.empty) {
-                        manualTableBody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--secondary-text);">Nessun contatto inserito.</td></tr>`;
+                        manualTableBody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--secondary-text);">Nessun contatto inserito.</td></tr>`;
                         return;
                     }
                     manualTableBody.innerHTML = snapshot.docs.map(docSnap => {
                         const contact = docSnap.data();
                         const deleteButtonHtml = canManage ? `<button onclick="deleteUsefulNumber('${docSnap.id}')" class="btn" style="background:var(--danger); color:white; padding: 0.4rem 0.8rem; font-size:0.8rem;">Elimina</button>` : 'N/A';
-                        return `<tr><td>${contact.title}</td><td>${contact.company || '–'}</td><td>${contact.number}</td><td style="text-align:right;">${deleteButtonHtml}</td></tr>`;
+                        return `<tr><td>${contact.title}</td><td>${contact.company || '–'}</td><td>${contact.number}</td><td>${contact.number2 || '–'}</td><td style="text-align:right;">${deleteButtonHtml}</td></tr>`;
                     }).join('');
                 });
             }
@@ -3159,7 +3117,7 @@
         window.deleteUser = deleteUser;
         window.openUserEditModal = openUserEditModal;
         const deletePoll = async (pollId) => {
-            if (!confirm('Sei sicuro di voler eliminare questo sondaggio? L\'azione è irreversibile e cancellerà tutti i voti associati.')) {
+            if (!confirm('Sei sicuro di voler eliminare questo sondaggio? L\'azione è irreversibile.')) {
                 return;
             }
             try {
