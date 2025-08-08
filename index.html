@@ -1,4 +1,4 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="it">
 <head>
     <meta charset="UTF-8">
@@ -479,6 +479,24 @@
         .grid { display: grid; }
         .grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .mt-4 { margin-top: 1rem; }
+        .user-action-btn {
+            background: var(--surface-color-light);
+            border: none;
+            cursor: pointer;
+            color: var(--secondary-text);
+            padding: 0.5rem;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            transition: background-color 0.2s, color 0.2s;
+        }
+        .user-action-btn:hover {
+            background-color: var(--accent-color);
+            color: var(--bg-color);
+        }
 
         /* Stili per Tabella Dati */
         .data-table-container {
@@ -2667,6 +2685,109 @@
             const userType=userProfile.tipoUtente,userId=currentUser.uid,qSent=query(collection(db,"reports"),where("createdById","==",userId));onSnapshot(qSent,s=>renderSnapshot(secondaryContainer,s,"Non hai inviato segnalazioni."));let qToManage;if(["amministratore","custode","consigliere","fornitore", "supervisore", "adm"].includes(userType)){qToManage=query(collection(db,"reports"),orderBy("createdAt","desc"));onSnapshot(qToManage,s=>renderSnapshot(mainContainer,s,"Nessuna segnalazione ricevuta."))}else{qToManage=query(collection(db,"reports"),where("recipientType","in",["management","condomino"]));onSnapshot(qToManage,s=>renderSnapshot(mainContainer,s,"Nessuna segnalazione pubblica."))}
         };
 
+        const deleteUser = async (userId, userName) => {
+            if (!confirm(`Sei sicuro di voler eliminare l'utente ${userName}? Questa azione eliminerà il suo profilo dal database, ma non il suo account di accesso. L'utente non potrà più accedere ai dati dell'app. L'azione è irreversibile.`)) {
+                return;
+            }
+            try {
+                await deleteDoc(doc(db, 'users', userId));
+                await logActivity("user_deleted", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { deletedUserId: userId, deletedUserName: userName });
+                // Nota: L'eliminazione dell'utente da Firebase Authentication non può essere eseguita in modo sicuro dal client.
+                // Richiede una Cloud Function o la riautenticazione dell'utente da eliminare.
+                // Eliminando il documento utente da Firestore, l'utente non potrà più caricare il suo profilo e usare l'app.
+                loadUsers(); // Ricarica la lista per riflettere il cambiamento
+            } catch (error) {
+                console.error("Errore durante l'eliminazione dell'utente:", error);
+                alert(`Si è verificato un errore: ${error.message}`);
+            }
+        };
+
+        const updateUser = async (event) => {
+            event.preventDefault();
+            const form = event.target;
+            const userId = form.querySelector('#edit-user-id').value;
+            const submitButton = form.querySelector('button[type="submit"]');
+            const messageBox = form.querySelector('#edit-user-message');
+            
+            const updatedData = {
+                nome: form.querySelector('#edit-nome').value,
+                cognome: form.querySelector('#edit-cognome').value,
+                tipoUtente: form.querySelector('#edit-tipo-utente').value,
+                telefono: form.querySelector('#edit-telefono').value,
+            };
+
+            submitButton.disabled = true;
+            submitButton.textContent = 'Salvataggio...';
+            messageBox.style.display = 'none';
+
+            try {
+                // Nota: la modifica delle proprietà (appartamenti/millesimi) non è inclusa in questo form
+                // per semplicità. Viene gestita solo la modifica dei dati principali dell'utente.
+                await updateDoc(doc(db, "users", userId), updatedData);
+                await logActivity("user_updated", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { updatedUserId: userId, changes: updatedData });
+                
+                hideModal();
+                loadUsers(); // Ricarica la lista per mostrare i dati aggiornati
+            } catch (error) {
+                console.error("Errore durante l'aggiornamento dell'utente:", error);
+                messageBox.className = 'message-box error';
+                messageBox.textContent = `Errore: ${error.message}`;
+                messageBox.style.display = 'block';
+                submitButton.disabled = false;
+                submitButton.textContent = 'Salva Modifiche';
+            }
+        };
+
+        const openUserEditModal = (user) => {
+            // L'oggetto 'user' contiene id, nome, cognome, email, tipoUtente, etc.
+            const allRoles = ["condomino", "amministratore", "custode", "consigliere", "fornitore", "supervisore", "adm"];
+            const rolesOptions = allRoles.map(role => {
+                const capitalizedRole = role.charAt(0).toUpperCase() + role.slice(1);
+                return `<option value="${role}" ${user.tipoUtente === role ? 'selected' : ''}>${capitalizedRole}</option>`
+            }).join('');
+
+            const modalContent = `
+                <form id="edit-user-form" class="space-y-4" onsubmit="updateUser(event)">
+                    <input type="hidden" id="edit-user-id" value="${user.id}">
+                    <div id="edit-user-message" class="message-box"></div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Email</label>
+                        <input type="email" value="${user.email || ''}" class="form-input" disabled>
+                        <p class="form-label" style="font-size:0.8rem; margin-top:0.25rem;">L'email non può essere modificata.</p>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="form-group">
+                            <label for="edit-nome" class="form-label">Nome</label>
+                            <input id="edit-nome" type="text" required class="form-input" value="${user.nome || ''}">
+                        </div>
+                        <div class="form-group">
+                            <label for="edit-cognome" class="form-label">Cognome</label>
+                            <input id="edit-cognome" type="text" required class="form-input" value="${user.cognome || ''}">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="edit-tipo-utente" class="form-label">Tipo di Utente</label>
+                        <select id="edit-tipo-utente" required class="form-select">${rolesOptions}</select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="edit-telefono" class="form-label">Telefono</label>
+                        <input id="edit-telefono" type="tel" class="form-input" value="${user.telefono || ''}">
+                    </div>
+                    
+                    <div class="flex justify-end gap-4 pt-2">
+                       <button type="button" class="btn btn-secondary" onclick="hideModal()">Annulla</button>
+                       <button type="submit" class="btn btn-primary">Salva Modifiche</button>
+                    </div>
+                </form>
+            `;
+
+            showModal(`Modifica Utente: ${user.nome} ${user.cognome}`, modalContent);
+        };
+
         const loadUsers = async () => {
             const container = document.getElementById('user-list-container');
             if (!container) return;
@@ -2686,16 +2807,27 @@
                             ? user.proprieta.map(p => `<li>${p.interno}: ${p.millesimi.toFixed(2)} ‰ ${p.gruppo ? `- <strong>Gruppo:</strong> ${p.gruppo}` : ''}</li>`).join('')
                             : '<li>Nessuna proprietà</li>';
                         
+                        // Aggiunta delle icone di modifica ed eliminazione
+                        const userObjectString = JSON.stringify({ id: userId, ...user }).replace(/'/g, "&apos;");
+
                         return `
                         <div class="card" style="margin-bottom: 1rem;">
-                            <div class="list-item" style="padding:0; cursor:default;">
-                                <div class="list-item-icon"><svg fill="currentColor" viewBox="0 0 24 24"><path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/></svg></div>
-                                <div class="list-item-content">
+                            <div class="list-item" style="padding:0; cursor:default; align-items: flex-start;">
+                                <div class="list-item-icon" style="margin-top: 0.5rem;"><svg fill="currentColor" viewBox="0 0 24 24"><path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/></svg></div>
+                                <div class="list-item-content" style="padding-top: 0.5rem;">
                                     <div class="title">${user.nome} ${user.cognome}</div>
                                     <div class="subtitle">${user.email} - ${user.tipoUtente}</div>
                                 </div>
+                                <div class="list-item-action flex gap-2" style="padding-top: 0.5rem;">
+                                    <button class="user-action-btn" onclick='openUserEditModal(${userObjectString})' title="Modifica Utente">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                                    </button>
+                                    <button class="user-action-btn" onclick="deleteUser('${userId}', '${user.nome} ${user.cognome}')" title="Elimina Utente">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                                    </button>
+                                </div>
                             </div>
-                            <div style="padding-left: 64px; margin-top: 1rem; font-size: 0.9rem;">
+                            <div style="padding-left: 64px; margin-top: 0.5rem; font-size: 0.9rem;">
                                 <strong class="form-label" style="color:var(--primary-text);">Proprietà e Millesimi:</strong>
                                 <ul style="list-style-type: disc; margin-left: 20px; color: var(--secondary-text);">
                                    ${propertiesHtml}
@@ -2775,8 +2907,11 @@
         window.openRuleEditor = openRuleEditor;
         window.deleteGroupRule = deleteGroupRule;
         window.toggleRuleStatus = toggleRuleStatus;
-        window.toggleGroupListVisibility = toggleGroupListVisibility;
+       window.toggleGroupListVisibility = toggleGroupListVisibility;
         window.loadElencoCondomini = loadElencoCondomini;
+        window.deleteUser = deleteUser;
+        window.openUserEditModal = openUserEditModal;
+        window.updateUser = updateUser;
 
         // --- FUNZIONE onAuthStateChanged CORRETTA E ROBUSTA ---
         onAuthStateChanged(auth, async (user) => {
