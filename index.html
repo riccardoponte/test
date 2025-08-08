@@ -970,17 +970,23 @@
             ${renderBottomNavigation()}
         `;
         
-        const renderInfoUtili = () => `
+                const renderInfoUtili = () => `
             ${renderHeader('Numeri Utili')}
             <main>
-                <div class="dashboard-grid">
+                <div class="dashboard-grid" style="grid-template-columns: 1fr 1fr;">
                     <div onclick="navigateTo('numeriUtiliImportati')" class="dashboard-item">
                         <div class="dashboard-card"><svg fill="currentColor" viewBox="0 0 24 24"><path d="M9,16V10H5L12,3L19,10H15V16H9M5,20V18H19V20H5Z"/></svg></div>
-                        <p>Importazione automatica</p>
+                        <p>Importazione</p>
                     </div>
                     <div onclick="navigateTo('numeriUtiliManuali')" class="dashboard-item">
                         <div class="dashboard-card"><svg fill="currentColor" viewBox="0 0 24 24"><path d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.13,5.12L18.88,8.87M3,17.25V21H6.75L17.81,9.94L14.06,6.19L3,17.25Z"/></svg></div>
-                        <p>Inserimento manuale</p>
+                        <p>Inserimento</p>
+                    </div>
+                    <div onclick="navigateTo('numeriUtiliRubrica')" class="dashboard-item" style="grid-column: 1 / -1;">
+                        <div class="dashboard-card" style="aspect-ratio: auto; height: 80px; flex-direction: row; justify-content: flex-start; gap: 1.5rem; padding: 1rem 1.5rem;">
+                            <svg fill="currentColor" viewBox="0 0 24 24" style="width: 32px; height: 32px; flex-shrink: 0;"><path d="M20,2H4A2,2 0 0,0 2,4V20A2,2 0 0,0 4,22H20A2,2 0 0,0 22,20V4A2,2 0 0,0 20,2M12,6A3,3 0 0,1 15,9A3,3 0 0,1 12,12A3,3 0 0,1 9,9A3,3 0 0,1 12,6M18,20H6V18.6C6,16.6 10,15.5 12,15.5C14,15.5 18,16.6 18,18.6V20Z"/></svg>
+                            <p style="text-align: left; font-size: 1.1rem;">Rubrica Completa</p>
+                        </div>
                     </div>
                 </div>
             </main>
@@ -1538,6 +1544,7 @@
                 case 'infoUtili': content = renderInfoUtili(); break;
                 case 'numeriUtiliImportati': content = renderNumeriUtiliImportati(); break;
                 case 'numeriUtiliManuali': content = renderNumeriUtiliManuali(); break;
+                case 'numeriUtiliRubrica': content = renderNumeriUtiliRubrica(); break;
                 case 'userManagement': 
                     if (['supervisore', 'adm'].includes(userType)) content = renderUserManagement(); 
                     else navigateTo('dashboard');
@@ -1586,6 +1593,9 @@
                 case 'numeriUtiliManuali':
                     loadUsefulNumbers(); 
                     setupInfoUtiliHandlers(); 
+                    break;
+                case 'numeriUtiliRubrica':
+                    loadRubricaNumbers();
                     break;
                 case 'userManagement': if (['supervisore', 'adm'].includes(userType)) { loadUsers(); setupAdminUserCreationHandler(); } break;
                 case 'gestioneGruppi': /* No handlers needed for the menu page */ break;
@@ -2600,6 +2610,92 @@
             } catch (error) {
                 console.error("Errore durante l'eliminazione del numero:", error);
                 alert("Si è verificato un errore durante l'eliminazione.");
+            }
+        };
+
+        const renderNumeriUtiliRubrica = () => `
+            ${renderHeader('Rubrica Completa')}
+            <main>
+                <div class="card">
+                    <p class="form-label" style="color: var(--secondary-text); margin-bottom: 2rem;">
+                        Visualizzazione unificata di tutti i contatti, sia quelli importati automaticamente che quelli inseriti manualmente.
+                    </p>
+
+                    <h3 class="section-title" style="font-size: 1.1rem;">Contatti da Importazione Automatica</h3>
+                    <div id="rubrica-imported-container" class="data-table-container" style="margin-bottom: 2.5rem;">
+                        <p style="color:var(--secondary-text);">Caricamento contatti importati...</p>
+                    </div>
+
+                    <h3 class="section-title" style="font-size: 1.1rem;">Contatti da Inserimento Manuale</h3>
+                    <div id="rubrica-manual-container" class="data-table-container">
+                        <p style="color:var(--secondary-text);">Caricamento contatti manuali...</p>
+                    </div>
+                </div>
+            </main>
+            ${renderBottomNavigation()}
+        `;
+
+        const loadRubricaNumbers = () => {
+            const importedContainer = document.getElementById('rubrica-imported-container');
+            const manualContainer = document.getElementById('rubrica-manual-container');
+
+            // Carica contatti importati
+            if (importedContainer) {
+                const qImported = query(collection(db, "importedPhoneNumbers"), orderBy("uploadedAt", "desc"), limit(1));
+                onSnapshot(qImported, (snapshot) => {
+                    if (snapshot.empty) {
+                        importedContainer.innerHTML = `<p style="color:var(--secondary-text);">Nessun contatto importato trovato.</p>`;
+                        return;
+                    }
+                    const data = snapshot.docs[0].data().tableData;
+                    if (!data || data.length === 0) {
+                         importedContainer.innerHTML = `<p style="color:var(--secondary-text);">Il file importato è vuoto.</p>`;
+                         return;
+                    }
+                    const headers = Object.keys(data[0]);
+                    let tableHTML = '<table class="data-table"><thead><tr>';
+                    headers.forEach(h => tableHTML += `<th>${h}</th>`);
+                    tableHTML += '</tr></thead><tbody>';
+                    data.forEach(row => {
+                        tableHTML += '<tr>';
+                        headers.forEach(h => tableHTML += `<td>${row[h] !== undefined ? row[h] : ''}</td>`);
+                        tableHTML += '</tr>';
+                    });
+                    tableHTML += '</tbody></table>';
+                    importedContainer.innerHTML = tableHTML;
+                });
+            }
+
+            // Carica contatti manuali
+            if (manualContainer) {
+                const qManual = query(collection(db, "usefulNumbers"), orderBy("createdAt", "desc"));
+                onSnapshot(qManual, (snapshot) => {
+                    if (snapshot.empty) {
+                        manualContainer.innerHTML = `<p style="color:var(--secondary-text);">Nessun contatto inserito manualmente.</p>`;
+                        return;
+                    }
+                    let tableHTML = `<table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Intervento richiesto</th>
+                                <th>Impresa</th>
+                                <th>1 num.Telefonico</th>
+                                <th>2 num.Telefonico</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+                    tableHTML += snapshot.docs.map(docSnap => {
+                        const contact = docSnap.data();
+                        return `<tr>
+                                    <td>${contact.title}</td>
+                                    <td>${contact.company || '–'}</td>
+                                    <td>${contact.number}</td>
+                                    <td>${contact.number2 || '–'}</td>
+                                </tr>`;
+                    }).join('');
+                    tableHTML += '</tbody></table>';
+                    manualContainer.innerHTML = tableHTML;
+                });
             }
         };
         const showProfileMessage=(e,t)=>{const o=document.getElementById("profile-message");o&&(o.className=`message-box ${e}`,o.textContent=t,o.style.display="block",setTimeout(()=>{o.style.display="none"},5e3))};
