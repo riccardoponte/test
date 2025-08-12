@@ -795,7 +795,25 @@
         };
 
         const resetPassword=async t=>await sendPasswordResetEmail(auth,t);
-        const loadUserProfile=async t=>{if(t){const e=await getDoc(doc(db,"users",t.uid));e.exists()&&(userProfile=e.data())}};
+        const loadUserProfile = async (user) => {
+            if (!user) return null;
+            try {
+                const userDocRef = doc(db, "users", user.uid);
+                const userDocSnap = await getDoc(userDocRef);
+                if (userDocSnap.exists()) {
+                    userProfile = userDocSnap.data(); // Assign to global
+                    return userProfile; // Return it
+                } else {
+                    console.error(`No user document found for UID: ${user.uid}`);
+                    userProfile = null; // Explicitly set global to null
+                    return null;
+                }
+            } catch (error) {
+                console.error("Error loading user profile:", error);
+                userProfile = null;
+                return null;
+            }
+        };
         
         const navigateTo=(e)=>{
             const userType = userProfile?.tipoUtente;
@@ -5968,7 +5986,15 @@
             if (user) {
                 // L'utente è loggato o si è appena loggato
                 currentUser = user;
-                await loadUserProfile(user);
+                const profile = await loadUserProfile(user);
+
+                if (!profile) {
+                    console.error("CRITICAL: User profile could not be loaded. Logging out.");
+                    alert("Errore critico: impossibile caricare i dati del tuo profilo. Potrebbe essere un problema di configurazione o i tuoi dati sono stati rimossi. Verrai disconnesso.");
+                    await logout(); // This will trigger the 'else' block of this function
+                    return; // Stop execution for this path
+                }
+
                 await loadServicePermissions();
                 
                 const userType = userProfile?.tipoUtente;
