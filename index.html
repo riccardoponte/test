@@ -795,25 +795,7 @@
         };
 
         const resetPassword=async t=>await sendPasswordResetEmail(auth,t);
-        const loadUserProfile = async (user) => {
-            if (!user) return null;
-            try {
-                const userDocRef = doc(db, "users", user.uid);
-                const userDocSnap = await getDoc(userDocRef);
-                if (userDocSnap.exists()) {
-                    userProfile = userDocSnap.data(); // Assign to global
-                    return userProfile; // Return it
-                } else {
-                    console.error(`No user document found for UID: ${user.uid}`);
-                    userProfile = null; // Explicitly set global to null
-                    return null;
-                }
-            } catch (error) {
-                console.error("Error loading user profile:", error);
-                userProfile = null;
-                return null;
-            }
-        };
+        const loadUserProfile=async t=>{if(t){const e=await getDoc(doc(db,"users",t.uid));e.exists()&&(userProfile=e.data())}};
         
         const navigateTo=(e)=>{
             const userType = userProfile?.tipoUtente;
@@ -1147,7 +1129,7 @@
                         <select id="poll-type-filter" class="form-select w-full">
                             <option value="">Tutti i tipi</option>
                             <option value="supervisor-consiglieri">Supervisor e Consiglieri</option>
-                            <option value="condomino">Condomino</option>
+                            <option value="condomini">Condomini</option>
                         </select>
                     </div>
                 </div>
@@ -2148,39 +2130,53 @@
             ${renderBottomNavigation()}
         `;
 
-        const renderImpostazioniSondaggi = () => `
-            ${renderHeader('Impostazione Sondaggi')}
-            <main>
-                <div class="card">
-                    <h3 class="card-title">Chi può votare nei sondaggi</h3>
-                    <div id="poll-settings-message" class="message-box"></div>
-                    <form id="poll-settings-form" class="space-y-4">
-                        <div class="form-group">
-                            <label class="property-selection-item" style="background-color: var(--surface-color-light); cursor: pointer;">
-                                <input type="radio" name="pollAuth" value="option1" style="width: 20px; height: 20px; accent-color: var(--accent-color);">
-                                <span style="flex-grow: 1;">Solo Supervisore, Amministratore e Consiglieri</span>
-                            </label>
-                        </div>
-                        <div class="form-group">
-                            <label class="property-selection-item" style="background-color: var(--surface-color-light); cursor: pointer;">
-                                <input type="radio" name="pollAuth" value="option2" style="width: 20px; height: 20px; accent-color: var(--accent-color);">
-                                <span style="flex-grow: 1;">Tutti (Supervisore, Amministratore, Consiglieri, Condomini)</span>
-                            </label>
-                        </div>
-                        <div class="form-group">
-                            <label class="property-selection-item" style="background-color: var(--surface-color-light); cursor: pointer;">
-                                <input type="radio" name="pollAuth" value="option3" style="width: 20px; height: 20px; accent-color: var(--accent-color);">
-                                <span style="flex-grow: 1;">Solo Supervisore e Consiglieri</span>
-                            </label>
-                        </div>
-                        <div class="flex justify-end pt-2">
-                           <button type="submit" class="btn btn-primary">Salva Impostazioni</button>
-                        </div>
-                    </form>
-                </div>
-            </main>
-            ${renderBottomNavigation()}
-        `;
+        const renderImpostazioniSondaggi = () => {
+    const userRole = userProfile?.tipoUtente;
+
+    // Definiamo le opzioni come oggetti per gestirle più facilmente
+    const optionTutti = { value: 'option2', label: 'Tutti (Supervisore, Amministratore, Consiglieri, Condomini)' };
+    const optionSac = { value: 'option1', label: 'Solo Supervisore, Amministratore e Consiglieri' };
+    const optionSc = { value: 'option3', label: 'Solo Supervisore e Consiglieri' };
+
+    let orderedOptions;
+
+    // Controlliamo il ruolo dell'utente per determinare l'ordine
+    if (['supervisore', 'adm'].includes(userRole)) {
+        // Ordine speciale per supervisore e adm: DAL PIÙ AL MENO RISTRETTO
+        orderedOptions = [optionSc, optionSac, optionTutti]; // <-- UNICA RIGA MODIFICATA
+    } else {
+        // Ordine di default per tutti gli altri ruoli
+        orderedOptions = [optionSac, optionTutti, optionSc];
+    }
+
+    // Generiamo l'HTML delle opzioni basandoci sull'array ordinato
+    const optionsHtml = orderedOptions.map(option => `
+        <div class="form-group">
+            <label class="property-selection-item" style="background-color: var(--surface-color-light); cursor: pointer;">
+                <input type="radio" name="pollAuth" value="${option.value}" style="width: 20px; height: 20px; accent-color: var(--accent-color);">
+                <span style="flex-grow: 1;">${option.label}</span>
+            </label>
+        </div>
+    `).join('');
+
+    // Componiamo il template finale della pagina
+    return `
+        ${renderHeader('Impostazione Sondaggi')}
+        <main>
+            <div class="card">
+                <h3 class="card-title">Chi può votare nei sondaggi</h3>
+                <div id="poll-settings-message" class="message-box"></div>
+                <form id="poll-settings-form" class="space-y-4">
+                    ${optionsHtml}
+                    <div class="flex justify-end pt-2">
+                       <button type="submit" class="btn btn-primary">Salva Impostazioni</button>
+                    </div>
+                </form>
+            </div>
+        </main>
+        ${renderBottomNavigation()}
+    `;
+};
 
         const renderAbilitaServizi = () => {
             const services = [
@@ -2365,7 +2361,7 @@
             if (!form) return;
 
             const messageBox = document.getElementById('poll-settings-message');
-            const settingsRef = doc(db, "settings", "pollVotingAuthorization");
+            const settingsRef = doc(db, "settings", "pollCreationAuthorization");
 
             // Load current setting
             try {
@@ -2398,7 +2394,7 @@
 
                 try {
                     await setDoc(settingsRef, { setting: selectedOption });
-                    await logActivity("poll_settings_updated", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { newSetting: selectedOption });
+                    await logActivity("poll_voting_settings_updated", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { newSetting: selectedOption });
                     
                     messageBox.className = 'message-box success';
                     messageBox.textContent = 'Impostazioni salvate con successo!';
@@ -5108,21 +5104,40 @@
         };
         
         const isUserAllowedToVote = (userType, setting) => {
+            // ADM can always vote
+            if (userType === 'adm') return true;
+            
             const allowedRoles = {
                 option1: ['supervisore', 'amministratore', 'consigliere'],
                 option2: ['supervisore', 'amministratore', 'consigliere', 'condomino'],
                 option3: ['supervisore', 'consigliere']
             };
             const roles = allowedRoles[setting] || allowedRoles['option2'];
+            
+            // Check if user is a condomino (including condomino2, condomino3, etc.)
+            if (userType.startsWith('condomino') && roles.includes('condomino')) {
+                return true;
+            }
+            
             return roles.includes(userType);
         };
 
         const isUserAllowedToCreatePolls = async () => {
-            if (!userProfile) return false;
-            const userType = userProfile.tipoUtente;
-            const allowedToCreate = ['supervisore', 'amministratore', 'consigliere', 'adm'];
-            return allowedToCreate.includes(userType);
-        };
+    if (!userProfile) return false;
+
+    const userType = userProfile.tipoUtente;
+    
+    // Definiamo una lista fissa di ruoli che possono CREARE sondaggi.
+    const creatorRoles = [
+        'adm', 
+        'supervisore', 
+        'amministratore', 
+        'consigliere'
+    ];
+
+    // La funzione ora si limita a controllare se il ruolo dell'utente è in questa lista.
+    return creatorRoles.includes(userType);
+};
 
         const showPollVoters = async (pollId) => {
             try {
@@ -5166,60 +5181,106 @@
         const loadPolls = (status = 'all') => {
             const container = document.getElementById("polls-container");
             if (!container) return;
-            if (!userProfile) {
-                container.innerHTML = `<div class="card"><p class="message-box error" style="display:block;">Errore: Profilo utente non caricato. Impossibile mostrare i sondaggi.</p></div>`;
-                return;
-            }
-
-            const settingsRef = doc(db, "settings", "pollVotingAuthorization");
+            
+            const settingsRef = doc(db, "settings", "pollCreationAuthorization");
             getDoc(settingsRef).then(settingsSnap => {
                 const pollSetting = settingsSnap.exists() ? settingsSnap.data().setting : 'option2';
                 const canUserVote = isUserAllowedToVote(userProfile.tipoUtente, pollSetting);
-
-                // Rimosso orderBy per debuggare il problema di visibilità.
-                const q = query(collection(db, "polls"));
-
+                const q = query(collection(db, "polls"), orderBy("createdAt", "desc"));
                 onSnapshot(q, snapshot => {
                     if (snapshot.empty) {
                         let message = 'Nessun sondaggio disponibile.';
-                        if (status === 'active') message = 'Nessun sondaggio attivo disponibile.';
-                        else if (status === 'closed') message = 'Nessun sondaggio concluso disponibile.';
+                        if (status === 'active') {
+                            message = 'Nessun sondaggio attivo disponibile.';
+                        } else if (status === 'closed') {
+                            message = 'Nessun sondaggio concluso disponibile.';
+                        }
                         container.innerHTML = `<div class="card"><p style="color:var(--secondary-text); padding: 1rem 0;">${message}</p></div>`;
                         return;
                     }
                     
+                    // Get search and filter values
                     const searchTerm = document.getElementById('poll-search')?.value?.toLowerCase() || '';
                     const typeFilter = document.getElementById('poll-type-filter')?.value || '';
                     
+                    // Filter polls based on search, type, status, and user role
                     let filteredPolls = snapshot.docs.filter(docSnap => {
                         const poll = docSnap.data();
+                        
+                        // --- NUOVA LOGICA DI FILTRAGGIO (PIÙ CHIARA E CORRETTA) ---
+const userRole = userProfile.tipoUtente;
+const pollType = poll.pollType;
+
+if (userRole === 'adm' || userRole === 'amministratore' || userRole === 'supervisore') {
+    // Questi ruoli possono vedere tutti i tipi di sondaggi.
+    // Non facciamo nulla e proseguiamo con gli altri filtri (status, ricerca, etc.)
+} else if (userRole === 'consigliere') {
+    // Il consigliere può vedere sia i sondaggi per 'condomini' che quelli per 'supervisor-consiglieri'.
+    if (pollType !== 'condomini' && pollType !== 'supervisor-consiglieri') {
+        return false; // Nascondi tutti gli altri tipi di sondaggi
+    }
+} else if (userRole.startsWith('condomino')) {
+    // Il condomino può vedere solo i sondaggi per 'condomini'.
+    if (pollType !== 'condomini') {
+        return false; // Nascondi tutti gli altri tipi di sondaggi
+    }
+} else {
+    // Tutti gli altri ruoli (es. custode, fornitore) non vedono nessun sondaggio.
+    return false;
+}
+// --- FINE DELLA NUOVA LOGICA ---
+                        
+                        // Filter by status (active/closed)
                         if (status !== 'all') {
-                            const deadline = poll.deadline?.toDate();
-                            const isExpired = deadline && deadline < new Date();
-                            if (status === 'active' && isExpired) return false;
-                            if (status === 'closed' && !isExpired) return false;
+                            if (!poll.deadline) {
+                                // Polls without deadline are considered active
+                                if (status === 'closed') return false;
+                            } else {
+                                const deadline = poll.deadline.toDate();
+                                const isExpired = deadline < new Date();
+                                if (status === 'active' && isExpired) return false;
+                                if (status === 'closed' && !isExpired) return false;
+                            }
                         }
-                        if (typeFilter && poll.pollType !== typeFilter) return false;
-                        if (searchTerm && !`${poll.title} ${poll.description || ''}`.toLowerCase().includes(searchTerm)) return false;
+                        
+                        // Filter by type if specified
+                        if (typeFilter && poll.pollType !== typeFilter) {
+                            return false;
+                        }
+                        
+                        // Filter by search term
+                        if (searchTerm) {
+                            const searchableText = `${poll.title} ${poll.description || ''}`.toLowerCase();
+                            if (!searchableText.includes(searchTerm)) {
+                                return false;
+                            }
+                        }
+                        
                         return true;
                     });
                     
                     if (filteredPolls.length === 0) {
                         let message = 'Nessun sondaggio trovato con i criteri di ricerca.';
-                        if (status === 'active') message = 'Nessun sondaggio attivo trovato.';
-                        else if (status === 'closed') message = 'Nessun sondaggio concluso trovato.';
+                        if (status === 'active') {
+                            message = 'Nessun sondaggio attivo trovato.';
+                        } else if (status === 'closed') {
+                            message = 'Nessun sondaggio concluso trovato.';
+                        }
                         container.innerHTML = `<div class="card"><p style="color:var(--secondary-text); padding: 1rem 0;">${message}</p></div>`;
                         return;
                     }
                     
-                    // Client-side sorting
-                    filteredPolls.sort((a, b) => (b.data().createdAt?.toMillis() || 0) - (a.data().createdAt?.toMillis() || 0));
+                    // Sort by poll number for numbered display
+                    filteredPolls.sort((a, b) => {
+                        const pollA = a.data();
+                        const pollB = b.data();
+                        return (pollA.pollNumber || 0) - (pollB.pollNumber || 0);
+                    });
                     
-                    container.innerHTML = filteredPolls.map((docSnap) => {
+                    container.innerHTML = filteredPolls.map((docSnap, index) => {
                         const poll = docSnap.data();
-                        if (!poll.deadline || !poll.createdAt) return "";
-                        const deadline = poll.deadline.toDate();
-                        const isExpired = deadline < new Date();
+                        const deadline = poll.deadline ? poll.deadline.toDate() : null;
+                        const isExpired = deadline ? deadline < new Date() : false;
                         const hasVoted = poll.voters && poll.voters.some(v => v.uid === currentUser.uid);
                         const totalVotes = poll.options.reduce((sum, opt) => sum + (opt.votes || 0), 0);
                         const showVoteUI = !isExpired && canUserVote;
@@ -5229,10 +5290,14 @@
                         const buttonText = hasVoted ? 'Cambia Voto' : 'Invia Voto';
 
                         const dateOptions = { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' };
-                        const creationDate = poll.createdAt.toDate().toLocaleString("it-IT", dateOptions);
-                        const closingDate = deadline.toLocaleString("it-IT", dateOptions);
-
-                        const dateInfoHtml = `...`; // (Il resto del rendering del sondaggio rimane qui)
+                        const creationDate = poll.createdAt ? poll.createdAt.toDate().toLocaleString("it-IT", dateOptions) : 'N/D';
+                        const closingDate = deadline ? deadline.toLocaleString("it-IT", dateOptions) : 'Senza scadenza';
+                        const dateInfoHtml = `
+                        <div style="font-size: 0.8rem; color: var(--secondary-text); margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--surface-color-light);">
+                            <div><strong>Tipo:</strong> ${pollTypeLabel}</div>
+                            <div><strong>Creato il:</strong> ${creationDate}</div>
+                            <div><strong>Scade il:</strong> ${closingDate}</div>
+                        </div>`;
 
                         let optionsHtml = '';
                         if (showVoteUI) {
@@ -5317,21 +5382,11 @@
                             ${poll.description ? `<p style="color: var(--secondary-text); margin-bottom: 1rem; font-style: italic;">${poll.description}</p>` : ''}
                             ${votingInstructionHtml}
                             ${optionsHtml}
-                            <div style="font-size: 0.8rem; color: var(--secondary-text); margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--surface-color-light);">
-                                <div><strong>Tipo:</strong> ${pollTypeLabel}</div>
-                                <div><strong>Creato il:</strong> ${creationDate}</div>
-                                <div><strong>Scade il:</strong> ${closingDate}</div>
-                            </div>
+                            ${dateInfoHtml}
                             ${actionButtonsHtml}
                         </div>`;
                     }).join("");
-                }, (error) => {
-                    console.error("Errore nel caricamento dei sondaggi:", error);
-                    container.innerHTML = `<div class="card"><p class="message-box error" style="display:block;">Errore nel caricamento dei sondaggi: ${error.message}</p></div>`;
                 });
-            }).catch(error => {
-                console.error("Errore nel caricamento delle impostazioni dei sondaggi:", error);
-                container.innerHTML = `<div class="card"><p class="message-box error" style="display:block;">Errore nelle impostazioni dei sondaggi: ${error.message}</p></div>`;
             });
         };
 
@@ -5825,7 +5880,7 @@
 
         const voteOnPoll = async (pollId, optionIndex) => {
             try {
-                const settingsRef = doc(db, "settings", "pollVotingAuthorization");
+                const settingsRef = doc(db, "settings", "pollCreationAuthorization");
                 const settingsSnap = await getDoc(settingsRef);
                 const pollSetting = settingsSnap.exists() ? settingsSnap.data().setting : "option2";
                 if (!isUserAllowedToVote(userProfile.tipoUtente, pollSetting)) {
@@ -5837,7 +5892,7 @@
                 if (!pollSnap.exists()) return;
 
                 const poll = pollSnap.data();
-                if (poll.deadline.toDate() < new Date()) return alert("Sondaggio scaduto.");
+                if (poll.deadline && poll.deadline.toDate() < new Date()) return alert("Sondaggio scaduto.");
 
                 const updatedOptions = [...poll.options];
                 let updatedVoters = [...poll.voters || []];
@@ -5986,15 +6041,7 @@
             if (user) {
                 // L'utente è loggato o si è appena loggato
                 currentUser = user;
-                const profile = await loadUserProfile(user);
-
-                if (!profile) {
-                    console.error("CRITICAL: User profile could not be loaded. Logging out.");
-                    alert("Errore critico: impossibile caricare i dati del tuo profilo. Potrebbe essere un problema di configurazione o i tuoi dati sono stati rimossi. Verrai disconnesso.");
-                    await logout(); // This will trigger the 'else' block of this function
-                    return; // Stop execution for this path
-                }
-
+                await loadUserProfile(user);
                 await loadServicePermissions();
                 
                 const userType = userProfile?.tipoUtente;
