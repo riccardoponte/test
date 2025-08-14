@@ -527,6 +527,413 @@
         .modal-body .voter-item:last-child {
             border-bottom: none;
         }
+
+        /* Stili per i Custom Dialog */
+        .dialog-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 3000;
+            padding: 1rem;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s ease, visibility 0.2s ease;
+            backdrop-filter: blur(2px);
+        }
+        .dialog-overlay:not(.hidden) {
+            opacity: 1;
+            visibility: visible;
+        }
+        .dialog-content {
+            background: var(--surface-color);
+            padding: 1.5rem;
+            border-radius: var(--radius-md);
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+            transform: scale(0.9);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            margin: 1rem;
+            border: 1px solid var(--surface-color-light);
+        }
+        
+        @media (max-width: 480px) {
+            .dialog-content {
+                padding: 1rem;
+                margin: 0.5rem;
+            }
+            .dialog-buttons {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+            .dialog-btn {
+                width: 100%;
+            }
+        }
+        .dialog-overlay:not(.hidden) .dialog-content {
+            transform: scale(1);
+        }
+        
+        /* Animation for dialog appearance */
+        @keyframes dialogFadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.9) translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-content {
+            animation: dialogFadeIn 0.3s ease-out;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), 0 0 0 1px var(--accent-color);
+            border-color: var(--accent-color);
+            background: linear-gradient(135deg, var(--surface-color) 0%, var(--surface-color-light) 100%);
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-title {
+            color: var(--accent-color);
+            text-shadow: 0 0 10px rgba(29, 185, 84, 0.3);
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-message {
+            color: var(--primary-text);
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn-primary {
+            background: linear-gradient(135deg, var(--accent-color) 0%, var(--accent-color-dark) 100%);
+            box-shadow: 0 4px 15px rgba(29, 185, 84, 0.3);
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-input {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 2px rgba(29, 185, 84, 0.2);
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn-secondary {
+            background: linear-gradient(135deg, var(--surface-color-light) 0%, var(--surface-color) 100%);
+            box-shadow: 0 4px 15px rgba(179, 179, 179, 0.2);
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn-danger {
+            background: linear-gradient(135deg, var(--danger) 0%, #c0392b 100%);
+            box-shadow: 0 4px 15px rgba(231, 76, 60, 0.3);
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn {
+            transform: translateY(0);
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:active {
+            transform: translateY(0) scale(0.95);
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px var(--accent-color);
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus:not(:focus-visible) {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible {
+            box-shadow: 0 0 0 2px var(--accent-color);
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:hover {
+            box-shadow: 0 0 0 2px var(--accent-color), 0 4px 15px rgba(29, 185, 84, 0.3);
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active {
+            box-shadow: 0 0 0 2px var(--accent-color);
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover {
+            box-shadow: 0 0 0 2px var(--accent-color);
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus {
+            box-shadow: 0 0 0 2px var(--accent-color);
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible) {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus:not(:focus-visible) {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible) {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible) {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible) {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible) {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible) {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible) {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible) {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible) {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible) {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus {
+            box-shadow: none;
+        }
+        
+        .dialog-overlay:not(.hidden) .dialog-btn:focus-visible:active:hover:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible):hover:active:focus:not(:focus-visible) {
+            box-shadow: none;
+        }
+        
+        /* Animation for dialog disappearance */
+        @keyframes dialogFadeOut {
+            from {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+            to {
+                opacity: 0;
+                transform: scale(0.9) translateY(-20px);
+            }
+        }
+        
+        .dialog-overlay.hidden .dialog-content {
+            animation: dialogFadeOut 0.2s ease-in;
+        }
+        .dialog-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--primary-text);
+            text-align: center;
+        }
+        .dialog-message {
+            margin-bottom: 1.5rem;
+            color: var(--secondary-text);
+            line-height: 1.5;
+            text-align: center;
+        }
+        .dialog-input {
+            width: 100%;
+            background: var(--surface-color-light);
+            border: 1px solid var(--surface-color-light);
+            border-radius: var(--radius-sm);
+            padding: 0.8rem 1rem;
+            font-family: 'Poppins', sans-serif;
+            font-size: 1rem;
+            color: var(--primary-text);
+            margin-bottom: 1.5rem;
+            transition: border-color 0.2s ease;
+        }
+        .dialog-input:focus {
+            outline: none;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 2px rgba(29, 185, 84, 0.2);
+        }
+        .dialog-buttons {
+            display: flex;
+            gap: 0.75rem;
+            justify-content: center;
+        }
+        .dialog-btn {
+            padding: 0.6rem 1.2rem;
+            border-radius: var(--radius-sm);
+            border: none;
+            font-family: 'Poppins', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            min-width: 80px;
+        }
+        .dialog-btn:active {
+            transform: scale(0.95);
+        }
+        .dialog-btn-primary {
+            background-color: var(--accent-color);
+            color: var(--bg-color);
+        }
+        .dialog-btn-primary:hover {
+            background-color: var(--accent-color-dark);
+            transform: translateY(-1px);
+        }
+        .dialog-btn-secondary {
+            background-color: var(--surface-color-light);
+            color: var(--primary-text);
+        }
+        .dialog-btn-secondary:hover {
+            background-color: var(--surface-color);
+            transform: translateY(-1px);
+        }
+        .dialog-btn-danger {
+            background-color: var(--danger);
+            color: var(--primary-text);
+        }
+        .dialog-btn-danger:hover {
+            background-color: #c0392b;
+            transform: translateY(-1px);
+        }
         
         /* Utilities */
         .hidden { display: none !important; }
@@ -667,6 +1074,40 @@
         </div>
     </div>
 
+    <!-- Custom Dialog Containers -->
+    <div id="alert-dialog" class="dialog-overlay hidden">
+        <div class="dialog-content">
+            <div class="dialog-title" id="alert-title"></div>
+            <div class="dialog-message" id="alert-message"></div>
+            <div class="dialog-buttons">
+                <button class="dialog-btn dialog-btn-primary" id="alert-ok-btn">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="confirm-dialog" class="dialog-overlay hidden">
+        <div class="dialog-content">
+            <div class="dialog-title" id="confirm-title"></div>
+            <div class="dialog-message" id="confirm-message"></div>
+            <div class="dialog-buttons">
+                <button class="dialog-btn dialog-btn-secondary" id="confirm-cancel-btn">Annulla</button>
+                <button class="dialog-btn dialog-btn-primary" id="confirm-ok-btn">Conferma</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="prompt-dialog" class="dialog-overlay hidden">
+        <div class="dialog-content">
+            <div class="dialog-title" id="prompt-title"></div>
+            <div class="dialog-message" id="prompt-message"></div>
+            <input type="text" class="dialog-input" id="prompt-input" placeholder="Inserisci il valore...">
+            <div class="dialog-buttons">
+                <button class="dialog-btn dialog-btn-secondary" id="prompt-cancel-btn">Annulla</button>
+                <button class="dialog-btn dialog-btn-primary" id="prompt-ok-btn">OK</button>
+            </div>
+        </div>
+    </div>
+
     <script type="module">
         import { initializeApp, deleteApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
         import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, updateEmail } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
@@ -720,6 +1161,110 @@
             modalContainer.classList.add('hidden');
         };
 
+        // Custom Dialog Functions to replace native browser dialogs
+        const customAlert = (message, title = 'Avviso') => {
+            return new Promise((resolve) => {
+                const alertDialog = document.getElementById('alert-dialog');
+                const alertTitle = document.getElementById('alert-title');
+                const alertMessage = document.getElementById('alert-message');
+                const alertOkBtn = document.getElementById('alert-ok-btn');
+
+                alertTitle.textContent = title;
+                alertMessage.textContent = message;
+                alertDialog.classList.remove('hidden');
+
+                const handleOk = () => {
+                    alertDialog.classList.add('hidden');
+                    alertOkBtn.removeEventListener('click', handleOk);
+                    resolve();
+                };
+
+                alertOkBtn.addEventListener('click', handleOk);
+            });
+        };
+
+        const customConfirm = (message, title = 'Conferma') => {
+            return new Promise((resolve) => {
+                const confirmDialog = document.getElementById('confirm-dialog');
+                const confirmTitle = document.getElementById('confirm-title');
+                const confirmMessage = document.getElementById('confirm-message');
+                const confirmCancelBtn = document.getElementById('confirm-cancel-btn');
+                const confirmOkBtn = document.getElementById('confirm-ok-btn');
+
+                confirmTitle.textContent = title;
+                confirmMessage.textContent = message;
+                confirmDialog.classList.remove('hidden');
+
+                const handleCancel = () => {
+                    confirmDialog.classList.add('hidden');
+                    confirmCancelBtn.removeEventListener('click', handleCancel);
+                    confirmOkBtn.removeEventListener('click', handleOk);
+                    resolve(false);
+                };
+
+                const handleOk = () => {
+                    confirmDialog.classList.add('hidden');
+                    confirmCancelBtn.removeEventListener('click', handleCancel);
+                    confirmOkBtn.removeEventListener('click', handleOk);
+                    resolve(true);
+                };
+
+                confirmCancelBtn.addEventListener('click', handleCancel);
+                confirmOkBtn.addEventListener('click', handleOk);
+            });
+        };
+
+        const customPrompt = (message, defaultValue = '', title = 'Input') => {
+            return new Promise((resolve) => {
+                const promptDialog = document.getElementById('prompt-dialog');
+                const promptTitle = document.getElementById('prompt-title');
+                const promptMessage = document.getElementById('prompt-message');
+                const promptInput = document.getElementById('prompt-input');
+                const promptCancelBtn = document.getElementById('prompt-cancel-btn');
+                const promptOkBtn = document.getElementById('prompt-ok-btn');
+
+                promptTitle.textContent = title;
+                promptMessage.textContent = message;
+                promptInput.value = defaultValue;
+                promptDialog.classList.remove('hidden');
+                promptInput.focus();
+
+                const handleCancel = () => {
+                    promptDialog.classList.add('hidden');
+                    promptCancelBtn.removeEventListener('click', handleCancel);
+                    promptOkBtn.removeEventListener('click', handleOk);
+                    promptInput.removeEventListener('keypress', handleKeypress);
+                    resolve(null);
+                };
+
+                const handleOk = () => {
+                    const value = promptInput.value.trim();
+                    promptDialog.classList.add('hidden');
+                    promptCancelBtn.removeEventListener('click', handleCancel);
+                    promptOkBtn.removeEventListener('click', handleOk);
+                    promptInput.removeEventListener('keypress', handleKeypress);
+                    resolve(value);
+                };
+
+                const handleKeypress = (e) => {
+                    if (e.key === 'Enter') {
+                        handleOk();
+                    } else if (e.key === 'Escape') {
+                        handleCancel();
+                    }
+                };
+
+                promptCancelBtn.addEventListener('click', handleCancel);
+                promptOkBtn.addEventListener('click', handleOk);
+                promptInput.addEventListener('keypress', handleKeypress);
+            });
+        };
+
+        // Replace native dialog functions globally
+        window.alert = customAlert;
+        window.confirm = customConfirm;
+        window.prompt = customPrompt;
+
         const loadServicePermissions = async () => {
             try {
                 const settingsRef = doc(db, "settings", "servicePermissions");
@@ -764,6 +1309,32 @@
             if (event.target === modalContainer) {
                 hideModal();
             }
+        });
+
+        // Add event listeners for custom dialogs
+        document.addEventListener('DOMContentLoaded', () => {
+            // Handle clicking outside dialogs to close them
+            const alertDialog = document.getElementById('alert-dialog');
+            const confirmDialog = document.getElementById('confirm-dialog');
+            const promptDialog = document.getElementById('prompt-dialog');
+
+            alertDialog.addEventListener('click', (event) => {
+                if (event.target === alertDialog) {
+                    alertDialog.classList.add('hidden');
+                }
+            });
+
+            confirmDialog.addEventListener('click', (event) => {
+                if (event.target === confirmDialog) {
+                    confirmDialog.classList.add('hidden');
+                }
+            });
+
+            promptDialog.addEventListener('click', (event) => {
+                if (event.target === promptDialog) {
+                    promptDialog.classList.add('hidden');
+                }
+            });
         });
         
         const logActivity = async (type, userId, userName, details = {}) => {
