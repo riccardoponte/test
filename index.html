@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="it">
 <head>
@@ -671,7 +670,7 @@
         import { initializeApp, deleteApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
         import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, updateEmail } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
         import { getFirestore, doc, setDoc, getDoc, collection, addDoc, query, orderBy, limit, onSnapshot, serverTimestamp, updateDoc, where, getDocs, deleteDoc, runTransaction, arrayUnion } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
-        import { getStorage, ref, listAll, uploadBytes, getDownloadURL, deleteObject, uploadBytesResumable } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js';
+        import { getStorage, ref, listAll, uploadBytes, getDownloadURL, deleteObject, uploadBytesResumable, getBlob } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js';
 
         const firebaseConfig = {
             apiKey: "AIzaSyCrLAomryfk-0s5Inm2XOsBrJusgmMI87E",
@@ -1034,7 +1033,7 @@
                 const renderDashboard = () => {
             const dashboardItemsHtml = [];
 
-            if (isServiceEnabledForCurrentUser('bacheca')) {
+            if (isServiceEnabledForCurrentUser('bacheca') && userProfile?.tipoUtente !== 'fornitore') {
     dashboardItemsHtml.push(`
         <div onclick="navigateTo('bacheca')" class="dashboard-item">
             <div class="dashboard-card" style="position: relative;">
@@ -1056,7 +1055,7 @@
                     </div>
                 `);
             }
-            if (isServiceEnabledForCurrentUser('sondaggi')) {
+            if (isServiceEnabledForCurrentUser('sondaggi') && userProfile?.tipoUtente !== 'fornitore') {
                 dashboardItemsHtml.push(`
                     <div onclick="navigateTo('sondaggi')" class="dashboard-item">
                         <div class="dashboard-card" style="position: relative;">
@@ -1067,7 +1066,7 @@
                     </div>
                 `);
             }
-            if (isServiceEnabledForCurrentUser('numeri_utili')) {
+            if (isServiceEnabledForCurrentUser('numeri_utili') && userProfile?.tipoUtente !== 'fornitore') {
                 dashboardItemsHtml.push(`
                     <div onclick="navigateTo('infoUtili')" class="dashboard-item">
                         <div class="dashboard-card"><svg fill="currentColor" viewBox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg></div>
@@ -1084,12 +1083,14 @@
                 `);
             }
             // Aggiunta pulsante Archivio
-            dashboardItemsHtml.push(`
-                <div onclick="navigateTo('archivio')" class="dashboard-item">
-                    <div class="dashboard-card"><svg fill="currentColor" viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V6h5.17l2 2H20v10z"/></svg></div>
-                    <p>Archivio</p>
-                </div>
-            `);
+            if (userProfile?.tipoUtente !== 'fornitore') {
+                dashboardItemsHtml.push(`
+                    <div onclick="navigateTo('archivio')" class="dashboard-item">
+                        <div class="dashboard-card"><svg fill="currentColor" viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V6h5.17l2 2H20v10z"/></svg></div>
+                        <p>Archivio</p>
+                    </div>
+                `);
+            }
                         if (['supervisore', 'adm'].includes(userProfile?.tipoUtente)) {
                 dashboardItemsHtml.push(`
                     <div onclick="navigateTo('gestioneGruppi')" class="dashboard-item">
@@ -1351,26 +1352,30 @@
             }
 
             // 2. Pulsanti utente (visibili a tutti)
-            menuItemsHtml.push(`
-                <div onclick="navigateTo('segnalazioni_crea')" class="dashboard-item">
-                    <div class="dashboard-card">
-                        <svg fill="currentColor" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+            if (userRole !== 'fornitore') {
+                menuItemsHtml.push(`
+                    <div onclick="navigateTo('segnalazioni_crea')" class="dashboard-item">
+                        <div class="dashboard-card">
+                            <svg fill="currentColor" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+                        </div>
+                        <p>Crea Segnalazione</p>
                     </div>
-                    <p>Crea Segnalazione</p>
-                </div>
-            `);
-             menuItemsHtml.push(`
-                <div onclick="navigateTo('segnalazioni_utente')" class="dashboard-item">
-                    <div class="dashboard-card">
-                        <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M16.2,16.2L11,13V7H12.5V12.2L17,14.9L16.2,16.2Z"/></svg>
+                `);
+            }
+             if (userRole !== 'fornitore') {
+                 menuItemsHtml.push(`
+                    <div onclick="navigateTo('segnalazioni_utente')" class="dashboard-item">
+                        <div class="dashboard-card">
+                            <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M16.2,16.2L11,13V7H12.5V12.2L17,14.9L16.2,16.2Z"/></svg>
+                        </div>
+                        <p>Mie Segnalazioni</p>
                     </div>
-                    <p>Mie Segnalazioni</p>
-                </div>
-            `);
+                `);
+            }
 
             // 3. Pulsanti di destinazione: logica aggiornata per nasconderli ai ruoli non pertinenti
-            // Mostra "Ad Amministratore" a tutti tranne all'amministratore e al custode
-            if (userRole !== 'amministratore' && userRole !== 'custode') {
+            // Mostra "Ad Amministratore" a tutti tranne all'amministratore, al custode e al fornitore
+            if (userRole !== 'amministratore' && userRole !== 'custode' && userRole !== 'fornitore') {
                 menuItemsHtml.push(`
                     <div onclick="navigateTo('segnalazioni_amministratore')" class="dashboard-item">
                         <div class="dashboard-card">
@@ -1381,8 +1386,8 @@
                 `);
             }
             
-            // Mostra "Al Custode" a tutti tranne al custode e all'amministratore
-            if (userRole !== 'custode' && userRole !== 'amministratore') {
+            // Mostra "Al Custode" a tutti tranne al custode, all'amministratore e al fornitore
+            if (userRole !== 'custode' && userRole !== 'amministratore' && userRole !== 'fornitore') {
                 menuItemsHtml.push(`
                     <div onclick="navigateTo('segnalazioni_custode')" class="dashboard-item">
                         <div class="dashboard-card">
@@ -1392,14 +1397,38 @@
                     </div>
                 `);
             }
-            // Mostra "Ai Consiglieri" a tutti tranne al consigliere, all'amministratore e al custode
-            if (userRole !== 'consigliere' && userRole !== 'amministratore' && userRole !== 'custode') {
+            // Mostra "Ai Consiglieri" a tutti tranne al consigliere, all'amministratore, al custode e al fornitore
+            if (userRole !== 'consigliere' && userRole !== 'amministratore' && userRole !== 'custode' && userRole !== 'fornitore') {
                 menuItemsHtml.push(`
                     <div onclick="navigateTo('segnalazioni_consiglieri')" class="dashboard-item">
                         <div class="dashboard-card">
                             <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/></svg>
                         </div>
                         <p>Ai Consiglieri</p>
+                    </div>
+                `);
+            }
+
+            // Mostra "Al Fornitore" a tutti tranne al fornitore, all'amministratore e al custode
+            if (userRole !== 'fornitore' && userRole !== 'amministratore' && userRole !== 'custode') {
+                 menuItemsHtml.push(`
+                    <div onclick="navigateTo('segnalazioni_fornitore')" class="dashboard-item">
+                        <div class="dashboard-card">
+                            <svg fill="currentColor" viewBox="0 0 24 24"><path d="M10,2H14A2,2 0 0,1 16,4V6H20A2,2 0 0,1 22,8V19A2,2 0 0,1 20,21H4A2,2 0 0,1 2,19V8A2,2 0 0,1 4,6H8V4A2,2 0 0,1 10,2M14,6V4H10V6H14Z"/></svg>
+                        </div>
+                        <p>Al Fornitore</p>
+                    </div>
+                `);
+            }
+
+            // Mostra "Allo Sviluppatore" a tutti tranne all'ADM
+            if (userRole !== 'adm') {
+                menuItemsHtml.push(`
+                    <div onclick="navigateTo('segnalazioni_sviluppatore')" class="dashboard-item">
+                        <div class="dashboard-card">
+                            <svg fill="currentColor" viewBox="0 0 24 24"><path d="M19,8H15V11H13V8H9V11H7V8H5C3.89,8 3,8.89 3,10V16C3,17.11 3.89,18 5,18H7V21H9V18H13V21H15V18H17C18.11,18 19,17.11 19,16V10C19,8.89 18.11,8 19,8M5,16V12H7V14H5M17,16H15V14H17V16M17,5H15V3H13V5H9V3H7V5H5C3.89,5 3,5.89 3,7V7.5H19V7C19,5.89 18.11,5 17,5Z" /></svg>
+                        </div>
+                        <p>Allo Sviluppatore</p>
                     </div>
                 `);
             }
@@ -1425,6 +1454,8 @@
                         <option value="amministratore">Amministratore</option>
                         <option value="custode">Custode</option>
                         <option value="consigliere">Consiglieri</option>
+                        <option value="fornitore">Fornitore</option>
+                        <option value="adm">Sviluppatore</option>
                     </select>
                 </div>`;
 
@@ -2152,6 +2183,12 @@
                         </div>
                     </div>
                     ` : ''}
+                    <div onclick="navigateTo('puliziaDati')" class="dashboard-item">
+                        <div class="dashboard-card" style="aspect-ratio: auto; padding: 1.5rem; flex-direction: row; justify-content: flex-start; gap: 1.5rem;">
+                            <svg fill="currentColor" viewBox="0 0 24 24" style="width: 32px; height: 32px; flex-shrink: 0;"><path d="M15 16h4v2h-4v-2zm0-8h7v2h-7V8zm0 4h6v2h-6v-2zM3 18c0 1.1.9 2 2 2h6c1.1 0 2-.9 2-2V8H3v10zM14 5h-3l-1-1H6L5 5H2v2h12V5z"/></svg>
+                            <p style="text-align: left; font-size: 1.1rem;">Pulizia Dati</p>
+                        </div>
+                    </div>
                 </div>
             </main>
             ${renderBottomNavigation()}
@@ -2644,6 +2681,7 @@
                 { id: 'amministratore', name: 'Amministratore' },
                 { id: 'custode', name: 'Custode' },
                 { id: 'consigliere', name: 'Consigliere' },
+                { id: 'fornitore', name: 'Fornitore' },
                 { id: 'supervisore', name: 'Supervisore' },
             ];
 
@@ -2692,6 +2730,181 @@
                 </main>
                 ${renderBottomNavigation()}
             `;
+        };
+
+        const renderPuliziaDati = () => `
+            ${renderHeader('Pulizia Dati')}
+            <main>
+                <div class="card">
+                    <h3 class="card-title">Pulizia Dati di Massa</h3>
+                    <p class="form-label" style="color:var(--secondary-text); margin-bottom: 1.5rem;">
+                        Seleziona una categoria di dati da visualizzare. Potrai selezionare ed eliminare più elementi contemporaneamente. <strong>Questa operazione è irreversibile.</strong>
+                    </p>
+                    <div id="cleanup-message-box" class="message-box"></div>
+                    <div class="filter-chips-container" style="margin-bottom: 1.5rem;">
+                        <div id="cleanup-chip-communications" class="chip" onclick="loadItemsForCleanup('communications')">Comunicazioni</div>
+                        <div id="cleanup-chip-reports" class="chip" onclick="loadItemsForCleanup('reports')">Segnalazioni</div>
+                        <div id="cleanup-chip-polls" class="chip" onclick="loadItemsForCleanup('polls')">Sondaggi</div>
+                    </div>
+                    <div id="cleanup-list-container" class="list-container" style="min-height: 200px; max-height: 60vh; overflow-y: auto;">
+                        <p style="color:var(--secondary-text);">Seleziona una categoria per iniziare.</p>
+                    </div>
+                    <div id="cleanup-actions-container" class="hidden" style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--surface-color-light);">
+                        <!-- "Select All" Checkbox will be injected here by JS -->
+                    </div>
+                </div>
+            </main>
+            ${renderBottomNavigation()}
+        `;
+
+        const loadItemsForCleanup = async (type) => {
+            const listContainer = document.getElementById('cleanup-list-container');
+            const actionsContainer = document.getElementById('cleanup-actions-container');
+            const messageBox = document.getElementById('cleanup-message-box');
+            messageBox.style.display = 'none';
+
+            // Reset chips and set active
+            document.querySelectorAll('.filter-chips-container .chip').forEach(c => c.classList.remove('active'));
+            document.getElementById(`cleanup-chip-${type}`).classList.add('active');
+            
+            listContainer.innerHTML = '<p style="color:var(--secondary-text);">Caricamento dati...</p>';
+            actionsContainer.classList.add('hidden');
+
+            const typeMap = {
+                communications: { collection: 'communications', titleField: 'title', dateField: 'createdAt' },
+                reports: { collection: 'reports', titleField: 'title', dateField: 'createdAt' },
+                polls: { collection: 'polls', titleField: 'title', dateField: 'createdAt' }
+            };
+
+            if (!typeMap[type]) return;
+            const config = typeMap[type];
+
+            try {
+                const q = query(collection(db, config.collection), orderBy(config.dateField, "desc"));
+                const snapshot = await getDocs(q);
+
+                if (snapshot.empty) {
+                    listContainer.innerHTML = `<p style="color:var(--secondary-text);">Nessun elemento trovato in questa categoria.</p>`;
+                    return;
+                }
+
+                const itemsHtml = snapshot.docs.map(doc => {
+                    const item = doc.data();
+                    const title = item[config.titleField] || 'Senza titolo';
+                    const date = item[config.dateField]?.toDate()?.toLocaleDateString('it-IT') || 'Data non disponibile';
+                    
+                    return `
+                    <div class="list-item" style="background: var(--surface-color-light);">
+                        <label class="flex items-center gap-4 w-full cursor-pointer">
+                            <input type="checkbox" class="cleanup-item-checkbox" data-id="${doc.id}" data-type="${type}" onchange="handleCleanupSelectionChange('${type}')" style="width: 20px; height: 20px; accent-color: var(--accent-color); flex-shrink: 0;">
+                            <div class="list-item-content">
+                                <div class="title">${title}</div>
+                                <div class="subtitle">${date}</div>
+                            </div>
+                        </label>
+                    </div>
+                    `;
+                }).join('');
+
+                listContainer.innerHTML = itemsHtml;
+
+                actionsContainer.innerHTML = `
+                    <label class="flex items-center gap-3 p-3 rounded-md cursor-pointer" style="background-color: var(--surface-color-light); margin-bottom: 1rem;">
+                        <input type="checkbox" id="cleanup-select-all" onchange="toggleAllForCleanup(this, '${type}')" style="width: 20px; height: 20px; accent-color: var(--accent-color);">
+                        <span class="font-medium">Seleziona / Deseleziona Tutto</span>
+                    </label>
+                    <button id="cleanup-delete-btn" class="btn w-full" style="background-color: var(--danger); color: white;" onclick="handleBulkDelete('${type}')" disabled>Elimina Selezionati (0)</button>
+                `;
+                actionsContainer.classList.remove('hidden');
+
+            } catch (error) {
+                console.error(`Error loading ${type} for cleanup:`, error);
+                listContainer.innerHTML = `<div class="message-box error" style="display:block">Errore nel caricamento: ${error.message}</div>`;
+            }
+        };
+
+        const toggleAllForCleanup = (source, type) => {
+            const checkboxes = document.querySelectorAll(`.cleanup-item-checkbox[data-type="${type}"]`);
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = source.checked;
+            });
+            handleCleanupSelectionChange(type);
+        };
+
+        const handleCleanupSelectionChange = (type) => {
+            const selectedCheckboxes = document.querySelectorAll(`.cleanup-item-checkbox[data-type="${type}"]:checked`);
+            const deleteBtn = document.getElementById('cleanup-delete-btn');
+            const selectAllCheckbox = document.getElementById('cleanup-select-all');
+            
+            if (deleteBtn) {
+                deleteBtn.disabled = selectedCheckboxes.length === 0;
+                deleteBtn.textContent = `Elimina Selezionati (${selectedCheckboxes.length})`;
+            }
+
+            if(selectAllCheckbox) {
+                const totalCheckboxes = document.querySelectorAll(`.cleanup-item-checkbox[data-type="${type}"]`).length;
+                selectAllCheckbox.checked = selectedCheckboxes.length === totalCheckboxes && totalCheckboxes > 0;
+                selectAllCheckbox.indeterminate = selectedCheckboxes.length > 0 && selectedCheckboxes.length < totalCheckboxes;
+            }
+        };
+
+        const handleBulkDelete = async (type) => {
+            const selectedCheckboxes = document.querySelectorAll(`.cleanup-item-checkbox[data-type="${type}"]:checked`);
+            const idsToDelete = Array.from(selectedCheckboxes).map(cb => cb.dataset.id);
+            const messageBox = document.getElementById('cleanup-message-box');
+
+            if (idsToDelete.length === 0) {
+                alert("Nessun elemento selezionato.");
+                return;
+            }
+
+            const typeName = {
+                communications: "comunicazioni",
+                reports: "segnalazioni",
+                polls: "sondaggi"
+            }[type];
+
+            if (!confirm(`Sei sicuro di voler eliminare definitivamente ${idsToDelete.length} ${typeName}?`)) {
+                return;
+            }
+
+            const confirmationText = prompt(`Questa azione è irreversibile. Per confermare, digita "ELIMINA" nel campo sottostante.`);
+            if (confirmationText !== 'ELIMINA') {
+                alert("Operazione annullata. La parola di conferma non è corretta.");
+                return;
+            }
+
+            const deleteBtn = document.getElementById('cleanup-delete-btn');
+            deleteBtn.disabled = true;
+            deleteBtn.textContent = 'Eliminazione in corso...';
+            
+            try {
+                const collectionName = { communications: 'communications', reports: 'reports', polls: 'polls' }[type];
+                const deletePromises = idsToDelete.map(id => deleteDoc(doc(db, collectionName, id)));
+                
+                await Promise.all(deletePromises);
+
+                await logActivity("bulk_delete", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, {
+                    dataType: type,
+                    count: idsToDelete.length,
+                    deletedIds: idsToDelete
+                });
+
+                messageBox.className = 'message-box success';
+                messageBox.textContent = `${idsToDelete.length} ${typeName} eliminati con successo.`;
+                messageBox.style.display = 'block';
+
+                // Ricarica la lista per mostrare i cambiamenti
+                loadItemsForCleanup(type);
+
+            } catch (error) {
+                console.error(`Bulk delete error for ${type}:`, error);
+                messageBox.className = 'message-box error';
+                messageBox.textContent = `Errore durante l'eliminazione: ${error.message}`;
+                messageBox.style.display = 'block';
+                deleteBtn.disabled = false;
+                handleCleanupSelectionChange(type); // Ripristina il conteggio corretto
+            }
         };
 
         const setupAbilitaServiziHandlers = async () => {
@@ -2899,6 +3112,8 @@
                 case 'segnalazioni_amministratore': content = renderSegnalazioniElenco('Segnalazioni ad Amministratore'); break;
                 case 'segnalazioni_custode': content = renderSegnalazioniElenco('Segnalazioni al Custode'); break;
                 case 'segnalazioni_consiglieri': content = renderSegnalazioniElenco('Segnalazioni ai Consiglieri'); break;
+                case 'segnalazioni_fornitore': content = renderSegnalazioniElenco('Segnalazioni al Fornitore'); break;
+                case 'segnalazioni_sviluppatore': content = renderSegnalazioniElenco('Segnalazioni allo Sviluppatore'); break;
                 case 'segnalazioni_ricevute': content = renderSegnalazioniRicevute(); break;
                 case 'segnalazioni_urgenti': content = renderSegnalazioniUrgenti(); break;
                 case 'segnalazioni_utente': content = renderSegnalazioniUtente(); break;
@@ -3002,6 +3217,10 @@
                     if (userProfile?.tipoUtente === 'adm') content = renderCronologiaAttivita();
                     else navigateTo('dashboard');
                     break;
+                case 'puliziaDati':
+                    if (['supervisore', 'adm'].includes(userProfile?.tipoUtente)) content = renderPuliziaDati();
+                    else navigateTo('dashboard');
+                    break;
                 default: content = renderLoginPage();
             }
 
@@ -3046,6 +3265,8 @@
                 case 'segnalazioni_amministratore': loadFilteredReports('amministratore'); break;
                 case 'segnalazioni_custode': loadFilteredReports('custode'); break;
                 case 'segnalazioni_consiglieri': loadFilteredReports('consigliere'); break;
+                case 'segnalazioni_fornitore': loadFilteredReports('fornitore'); break;
+                case 'segnalazioni_sviluppatore': loadFilteredReports('adm'); break;
                 case 'segnalazioni_ricevute': loadReceivedReports(); break;
                 case 'segnalazioni_urgenti': loadUrgentReports(); break;
                 case 'segnalazioni_utente': loadUserReports(); break;
@@ -3097,6 +3318,7 @@
                 case 'impostazioniSondaggi': if (['supervisore', 'adm'].includes(userType)) { setupImpostazioniSondaggiHandlers(); } break;
                 case 'abilitaServizi': if (userProfile?.tipoUtente === 'adm') { setupAbilitaServiziHandlers(); } break;
                 case 'cronologiaAttivita': if (userProfile?.tipoUtente === 'adm') { setupCronologiaAttivitaHandlers(); } break;
+                case 'puliziaDati': /* No specific handlers needed as logic is in onclick */ break;
                 case 'archivio':
                 case 'gestione_archivio':
                     setupArchivioHandlers();
@@ -6187,7 +6409,13 @@ if (userRole === 'adm' || userRole === 'amministratore' || userRole === 'supervi
 
                 // Se l'utente NON è un supervisore o admin, applichiamo un filtro post-query
                 if (userRole !== 'supervisore' && userRole !== 'adm') {
-                    docsToRender = snapshot.docs.filter(doc => doc.data().recipientType === userRole);
+                    if (userRole === 'amministratore') {
+                        // L'amministratore vede le sue segnalazioni E quelle per lo sviluppatore.
+                        docsToRender = snapshot.docs.filter(doc => ['amministratore', 'sviluppatore'].includes(doc.data().recipientType));
+                    } else {
+                        // Gli altri ruoli (custode, consigliere) vedono solo le proprie.
+                        docsToRender = snapshot.docs.filter(doc => doc.data().recipientType === userRole);
+                    }
                 }
 
                 // Renderizziamo i documenti (filtrati o meno)
@@ -7016,9 +7244,6 @@ if (userRole === 'adm' || userRole === 'amministratore' || userRole === 'supervi
                 res.prefixes.forEach(folderRef => {
                     const managementActions = canManage ? `
                         <div class="list-item-action flex gap-2">
-                            <button onclick="event.stopPropagation(); handleRenameFolder('${folderRef.fullPath}')" class="btn-icon" title="Rinomina Cartella">
-                                <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M21.41 6.34l-3.75-3.75L3 17.25V21h3.75L21.41 6.34zM19.53 8.21L15.79 4.47l1.88-1.88 3.75 3.75-1.88 1.88z"/></svg>
-                            </button>
                             <button onclick="event.stopPropagation(); handleDeleteItem('${folderRef.fullPath}', true)" class="btn-icon" title="Elimina Cartella" style="background:var(--danger); color:white;">
                                 <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
                             </button>
@@ -7177,7 +7402,7 @@ if (userRole === 'adm' || userRole === 'amministratore' || userRole === 'supervi
             const parentPath = oldPath.substring(0, oldPath.lastIndexOf(oldName));
             const newPath = parentPath + newName.trim() + '/';
 
-            showModal('Ridenominazione in corso...', '<p>Questa operazione potrebbe richiedere alcuni istanti. Non chiudere la pagina.</p><div class="poll-option-bar"><div id="rename-progress-bar" class="poll-option-fill" style="background: var(--accent-color); width: 0%;"></div></div>');
+            showModal('Ridenominazione in corso...', '<p>Questa operazione potrebbe richiedere alcuni istanti. Non chiudere la pagina.</p>');
 
             try {
                 await moveFolderContents(oldPath, newPath);
@@ -7192,39 +7417,22 @@ if (userRole === 'adm' || userRole === 'amministratore' || userRole === 'supervi
         };
 
         const moveFolderContents = async (oldPath, newPath) => {
-            const listRef = ref(storage, oldPath);
-            const res = await listAll(listRef);
+    const listRef = ref(storage, oldPath);
+    const res = await listAll(listRef);
 
-            const moveFile = async (fileRef) => {
-                const newFileRef = ref(storage, newPath + fileRef.name);
-                const url = await getDownloadURL(fileRef);
-                const response = await fetch(url);
-                const blob = await response.blob();
-                await uploadBytes(newFileRef, blob);
-                await deleteObject(fileRef);
-            };
+    // 1. Sposta tutti i file dalla vecchia alla nuova posizione, uno alla volta (sequenziale).
+    for (const itemRef of res.items) {
+        const newFileRef = ref(storage, newPath + itemRef.name);
+        const blob = await getBlob(itemRef); // Usa getBlob per evitare problemi di CORS
+        await uploadBytes(newFileRef, blob);
+        await deleteObject(itemRef); // Elimina il vecchio file solo dopo la copia
+    }
 
-            const totalItems = res.items.length + res.prefixes.length;
-            let itemsProcessed = 0;
-            const progressBar = document.getElementById('rename-progress-bar');
-
-            const updateProgress = () => {
-                itemsProcessed++;
-                if (progressBar) {
-                    progressBar.style.width = `${(itemsProcessed / totalItems) * 100}%`;
-                }
-            };
-
-            for (const itemRef of res.items) {
-                await moveFile(itemRef);
-                updateProgress();
-            }
-
-            for (const folderRef of res.prefixes) {
-                await moveFolderContents(folderRef.fullPath, newPath + folderRef.name + '/');
-                updateProgress();
-            }
-        };
+    // 2. Esegui la stessa operazione ricorsivamente per tutte le sottocartelle.
+    for (const folderRef of res.prefixes) {
+        await moveFolderContents(folderRef.fullPath, newPath + folderRef.name + '/');
+    }
+};
 
         const handleCreateFolder = async () => {
             const folderName = prompt("Inserisci il nome della nuova cartella:");
@@ -7408,6 +7616,11 @@ if (userRole === 'adm' || userRole === 'amministratore' || userRole === 'supervi
         window.openUploadModal = openUploadModal;
         window.selectUploadPath = selectUploadPath;
         window.handleRenameFolder = handleRenameFolder;
+        window.loadItemsForCleanup = loadItemsForCleanup;
+        window.toggleAllForCleanup = toggleAllForCleanup;
+        window.handleCleanupSelectionChange = handleCleanupSelectionChange;
+        window.handleBulkDelete = handleBulkDelete;
+
         const deletePoll = async (pollId) => {
             if (!confirm('Sei sicuro di voler eliminare questo sondaggio? L\'azione è irreversibile.')) {
                 return;
