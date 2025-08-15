@@ -719,6 +719,42 @@
             modalContainer.classList.add('hidden');
         };
 
+        // Funzioni di utility per sostituire alert, confirm e prompt
+        const showAlert = (message, title = 'Informazione') => {
+            const contentHtml = `
+                <p style="margin-bottom: 1.5rem;">${message}</p>
+                <div style="display: flex; justify-content: center;">
+                    <button onclick="hideModal()" class="btn btn-primary">OK</button>
+                </div>
+            `;
+            showModal(title, contentHtml);
+        };
+
+        const showConfirm = (message, title = 'Conferma', onConfirm, onCancel) => {
+            const contentHtml = `
+                <p style="margin-bottom: 1.5rem;">${message}</p>
+                <div style="display: flex; justify-content: center; gap: 1rem;">
+                    <button onclick="hideModal(); if (typeof onCancel === 'function') onCancel();" class="btn btn-secondary">Annulla</button>
+                    <button onclick="hideModal(); if (typeof onConfirm === 'function') onConfirm();" class="btn btn-primary">Conferma</button>
+                </div>
+            `;
+            showModal(title, contentHtml);
+        };
+
+        const showPrompt = (message, title = 'Input', defaultValue = '', onConfirm, onCancel) => {
+            const contentHtml = `
+                <p style="margin-bottom: 1rem;">${message}</p>
+                <input type="text" id="prompt-input" value="${defaultValue}" class="form-input" style="margin-bottom: 1.5rem;" placeholder="Inserisci il valore...">
+                <div style="display: flex; justify-content: center; gap: 1rem;">
+                    <button onclick="hideModal(); if (typeof onCancel === 'function') onCancel();" class="btn btn-secondary">Annulla</button>
+                    <button onclick="hideModal(); if (typeof onConfirm === 'function') onConfirm(document.getElementById('prompt-input').value);" class="btn btn-primary">Conferma</button>
+                </div>
+            `;
+            showModal(title, contentHtml);
+            // Focus automatico sul campo input
+            setTimeout(() => document.getElementById('prompt-input').focus(), 100);
+        };
+
         const loadServicePermissions = async () => {
             try {
                 const settingsRef = doc(db, "settings", "servicePermissions");
@@ -2854,7 +2890,7 @@
             const messageBox = document.getElementById('cleanup-message-box');
 
             if (idsToDelete.length === 0) {
-                alert("Nessun elemento selezionato.");
+                showAlert("Nessun elemento selezionato.");
                 return;
             }
 
@@ -2864,47 +2900,51 @@
                 polls: "sondaggi"
             }[type];
 
-            if (!confirm(`Sei sicuro di voler eliminare definitivamente ${idsToDelete.length} ${typeName}?`)) {
-                return;
-            }
+            showConfirm(`Sei sicuro di voler eliminare definitivamente ${idsToDelete.length} ${typeName}?`, 'Conferma Eliminazione', () => {
+                // Procedi con l'eliminazione
+                showPrompt(`Questa azione è irreversibile. Per confermare, digita "ELIMINA" nel campo sottostante.`, 'Conferma Eliminazione', '', (confirmationText) => {
+                    if (confirmationText !== 'ELIMINA') {
+                        showAlert("Operazione annullata. La parola di conferma non è corretta.");
+                        return;
+                    }
 
-            const confirmationText = prompt(`Questa azione è irreversibile. Per confermare, digita "ELIMINA" nel campo sottostante.`);
-            if (confirmationText !== 'ELIMINA') {
-                alert("Operazione annullata. La parola di conferma non è corretta.");
-                return;
-            }
-
-            const deleteBtn = document.getElementById('cleanup-delete-btn');
-            deleteBtn.disabled = true;
-            deleteBtn.textContent = 'Eliminazione in corso...';
-            
-            try {
-                const collectionName = { communications: 'communications', reports: 'reports', polls: 'polls' }[type];
-                const deletePromises = idsToDelete.map(id => deleteDoc(doc(db, collectionName, id)));
+                const deleteBtn = document.getElementById('cleanup-delete-btn');
+                deleteBtn.disabled = true;
+                deleteBtn.textContent = 'Eliminazione in corso...';
                 
-                await Promise.all(deletePromises);
+                (async () => {
+                    try {
+                        const collectionName = { communications: 'communications', reports: 'reports', polls: 'polls' }[type];
+                        const deletePromises = idsToDelete.map(id => deleteDoc(doc(db, collectionName, id)));
+                        
+                        await Promise.all(deletePromises);
 
-                await logActivity("bulk_delete", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, {
-                    dataType: type,
-                    count: idsToDelete.length,
-                    deletedIds: idsToDelete
+                        await logActivity("bulk_delete", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, {
+                            dataType: type,
+                            count: idsToDelete.length,
+                            deletedIds: idsToDelete
+                        });
+
+                        messageBox.className = 'message-box success';
+                        messageBox.textContent = `${idsToDelete.length} ${typeName} eliminati con successo.`;
+                        messageBox.style.display = 'block';
+
+                        // Ricarica la lista per mostrare i cambiamenti
+                        loadItemsForCleanup(type);
+
+                    } catch (error) {
+                        console.error(`Bulk delete error for ${type}:`, error);
+                        messageBox.className = 'message-box error';
+                        messageBox.textContent = `Errore durante l'eliminazione: ${error.message}`;
+                        messageBox.style.display = 'block';
+                        deleteBtn.disabled = false;
+                        handleCleanupSelectionChange(type); // Ripristina il conteggio corretto
+                    }
+                })();
                 });
+            });
 
-                messageBox.className = 'message-box success';
-                messageBox.textContent = `${idsToDelete.length} ${typeName} eliminati con successo.`;
-                messageBox.style.display = 'block';
 
-                // Ricarica la lista per mostrare i cambiamenti
-                loadItemsForCleanup(type);
-
-            } catch (error) {
-                console.error(`Bulk delete error for ${type}:`, error);
-                messageBox.className = 'message-box error';
-                messageBox.textContent = `Errore durante l'eliminazione: ${error.message}`;
-                messageBox.style.display = 'block';
-                deleteBtn.disabled = false;
-                handleCleanupSelectionChange(type); // Ripristina il conteggio corretto
-            }
         };
 
         const setupAbilitaServiziHandlers = async () => {
@@ -2927,7 +2967,7 @@
                     bg.style.backgroundColor = 'var(--surface-color-light)';
                     dot.style.transform = 'translateX(0)';
                 }
-            };
+            });
 
             try {
                 const docSnap = await getDoc(settingsRef);
@@ -3063,7 +3103,7 @@
                 const selectedOption = formData.get('pollAuth');
                 
                 if (!selectedOption) {
-                    alert('Seleziona un\'opzione.');
+                    showAlert('Seleziona un\'opzione.');
                     return;
                 }
 
@@ -3353,7 +3393,7 @@
             const findHeader = (headers, keywords) => {
                 const lowerCaseKeywords = keywords.map(k => k.toLowerCase());
                 return headers.find(header => lowerCaseKeywords.includes(header.toLowerCase()));
-            };
+            });
 
             const loadPartialCondosForRegistration = async () => {
                 if (localPartialCondosList.length > 0) return;
@@ -3615,7 +3655,7 @@
             const content = contentInput.value.trim();
             const targetGroup = targetGroupInput.value;
 
-            if (!title || !content) return alert("Compila titolo e messaggio.");
+            if (!title || !content) return showAlert("Compila titolo e messaggio.");
 
             publishBtn.disabled = true;
             publishBtn.textContent = "...";
@@ -3633,7 +3673,7 @@
                 form.reset();
             } catch (error) {
                 console.error("Errore:", error);
-                alert("Si è verificato un errore.");
+                showAlert("Si è verificato un errore.");
             } finally {
                 publishBtn.disabled = false;
                 publishBtn.textContent = "Pubblica";
@@ -3728,9 +3768,9 @@
                 const optionInputs = form.querySelectorAll('#poll-options-list input[type="text"]');
                 const options = Array.from(optionInputs).map(input => input.value.trim()).filter(Boolean).map(text => ({ text: text, votes: 0 }));
 
-                if (!pollType) return alert("Seleziona un tipo di sondaggio.");
-                if (options.length < 2) return alert("Inserisci almeno due opzioni.");
-                if (!deadlineDate || !deadlineTime) return alert("Inserisci una data e un'ora di scadenza.");
+                            if (!pollType) return showAlert("Seleziona un tipo di sondaggio.");
+            if (options.length < 2) return showAlert("Inserisci almeno due opzioni.");
+            if (!deadlineDate || !deadlineTime) return showAlert("Inserisci una data e un'ora di scadenza.");
 
                 const deadlineISO = `${deadlineDate}T${deadlineTime}`;
                 const deadline = new Date(deadlineISO);
@@ -3798,7 +3838,7 @@
                 const recipient = document.getElementById("report-recipient").value;
 
                 if (!title || !description || !category || !priority || !location || !recipient) {
-                    return alert("Compila tutti i campi, incluso il destinatario.");
+                    return showAlert("Compila tutti i campi, incluso il destinatario.");
                 }
 
                 try {
@@ -3842,11 +3882,11 @@
                     await logActivity("report_created", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { reportId: newReportRef.id, title: title, priority: priority, recipient: recipient });
                     form.reset();
                     // Usiamo la variabile che abbiamo salvato, senza rileggere il database
-                    alert(`Segnalazione #${finalReportNumber} creata con successo!`);
+                    showAlert(`Segnalazione #${finalReportNumber} creata con successo!`);
 
                 } catch (error) {
                     console.error("Errore nella creazione della segnalazione:", error);
-                    alert("Si è verificato un errore durante l'invio della segnalazione.");
+                    showAlert("Si è verificato un errore durante l'invio della segnalazione.");
                 }
             });
         };
@@ -3906,7 +3946,7 @@
                     
                     // Controllo accesso: solo supervisore può aggiungere contatti
                     if (userProfile?.tipoUtente !== 'supervisore') {
-                        alert('Non hai i permessi per aggiungere contatti. Solo i supervisori possono eseguire questa operazione.');
+                        showAlert('Non hai i permessi per aggiungere contatti. Solo i supervisori possono eseguire questa operazione.');
                         return;
                     }
                     
@@ -3915,7 +3955,7 @@
                     const number = document.getElementById('nu-number').value.trim();
                     const number2 = document.getElementById('nu-number-2').value.trim();
                     if (!title || !number) {
-                        alert('I campi "INTERVENTO RICHIESTO" e "1 NUM. TELEFONICO" sono obbligatori.');
+                        showAlert('I campi "INTERVENTO RICHIESTO" e "1 NUM. TELEFONICO" sono obbligatori.');
                         return;
                     }
                     try {
@@ -3924,7 +3964,7 @@
                         manualForm.reset();
                     } catch (error) {
                         console.error("Errore nell'aggiunta del numero utile:", error);
-                        alert("Si è verificato un errore.");
+                        showAlert("Si è verificato un errore.");
                     }
                 });
             }
@@ -3941,7 +3981,7 @@
                     
                     // Controllo accesso: solo supervisore può importare file
                     if (userProfile?.tipoUtente !== 'supervisore') {
-                        alert('Non hai i permessi per importare file. Solo i supervisori possono eseguire questa operazione.');
+                        showAlert('Non hai i permessi per importare file. Solo i supervisori possono eseguire questa operazione.');
                         fileInput.value = '';
                         return;
                     }
@@ -4609,7 +4649,7 @@
                     nameInput.value = '';
                 } catch (error) {
                     console.error("Errore nella creazione del condominio parziale:", error);
-                    alert("Si è verificato un errore.");
+                    showAlert("Si è verificato un errore.");
                 }
             });
         };
@@ -4804,16 +4844,17 @@
         };
 
         const deletePartialCondo = async (id) => {
-            if (!confirm('Sei sicuro di voler eliminare questo gruppo? L\'azione è irreversibile.')) {
-                return;
-            }
-            try {
-                await deleteDoc(doc(db, 'partialCondos', id));
-                await logActivity("partial_condo_deleted", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { deletedId: id });
-            } catch (error) {
-                console.error("Errore durante l'eliminazione:", error);
-                alert("Si è verificato un errore durante l'eliminazione.");
-            }
+            showConfirm('Sei sicuro di voler eliminare questo gruppo? L\'azione è irreversibile.', 'Conferma Eliminazione', () => {
+                (async () => {
+                    try {
+                        await deleteDoc(doc(db, 'partialCondos', id));
+                        await logActivity("partial_condo_deleted", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { deletedId: id });
+                    } catch (error) {
+                        console.error("Errore durante l'eliminazione:", error);
+                        showAlert("Si è verificato un errore durante l'eliminazione.");
+                    }
+                })();
+            });
         };
 
         const toggleGroupListVisibility = () => {
@@ -4882,12 +4923,12 @@
             const ruleName = form.querySelector('#rule-name').value.trim();
             const ruleType = form.querySelector('#rule-type').value;
             let classification = form.querySelector('#rule-classification').value;
-            if (!ruleName) { alert('Il nome della regola è obbligatorio.'); return; }
+            if (!ruleName) { showAlert('Il nome della regola è obbligatorio.'); return; }
             if (classification === '__CREATE_NEW__') {
                 const newGroupNameInput = form.querySelector('#rule-new-group-name');
                 const newGroupName = newGroupNameInput.value.trim();
                 if (!newGroupName) {
-                    alert('Inserisci un nome per il nuovo gruppo.');
+                    showAlert('Inserisci un nome per il nuovo gruppo.');
                     newGroupNameInput.focus();
                     return;
                 }
@@ -4896,22 +4937,22 @@
                     classification = newGroupName;
                 } catch (error) {
                     console.error("Errore nella creazione del gruppo:", error);
-                    alert("Si è verificato un errore nella creazione del nuovo gruppo.");
+                    showAlert("Si è verificato un errore nella creazione del nuovo gruppo.");
                     return;
                 }
             }
-            if (!classification) { alert('Seleziona un gruppo a cui assegnare la classificazione.'); return; }
+            if (!classification) { showAlert('Seleziona un gruppo a cui assegnare la classificazione.'); return; }
             const ruleData = { name: ruleName, type: ruleType, params: {}, isActive: true, updatedAt: serverTimestamp() };
             if (ruleType === 'row_range_classification') {
                 const startRow = parseInt(form.querySelector('#rule-start-row').value, 10);
                 const endRow = parseInt(form.querySelector('#rule-end-row').value, 10);
-                if (!startRow || !endRow) { alert('Specifica un intervallo di righe valido.'); return; }
-                if (startRow > endRow) { alert('La riga di inizio non può essere maggiore della riga di fine.'); return; }
+                if (!startRow || !endRow) { showAlert('Specifica un intervallo di righe valido.'); return; }
+                if (startRow > endRow) { showAlert('La riga di inizio non può essere maggiore della riga di fine.'); return; }
                 ruleData.params = { startRow, endRow, classification };
             } else if (ruleType === 'text_contains_classification') {
                 const targetColumn = form.querySelector('#rule-target-column').value;
                 const searchText = form.querySelector('#rule-search-text').value.trim();
-                if (!targetColumn || !searchText) { alert('Specifica una colonna e un testo da cercare.'); return; }
+                if (!targetColumn || !searchText) { showAlert('Specifica una colonna e un testo da cercare.'); return; }
                 ruleData.params = { targetColumn, searchText, classification };
             }
             try {
@@ -4926,19 +4967,22 @@
                 closeRuleEditor();
             } catch (error) {
                 console.error('Errore nel salvataggio della regola:', error);
-                alert('Si è verificato un errore durante il salvataggio.');
+                showAlert('Si è verificato un errore durante il salvataggio.');
             }
         };
 
         const deleteGroupRule = async (ruleId) => {
-            if (!confirm('Sei sicuro di voler eliminare questa regola?')) return;
-            try {
-                await deleteDoc(doc(db, 'groupRules', ruleId));
-                await logActivity("group_rule_deleted", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { ruleId: ruleId });
-            } catch (error) {
-                console.error('Errore eliminazione regola:', error);
-                alert('Errore durante l\'eliminazione.');
-            }
+            showConfirm('Sei sicuro di voler eliminare questa regola?', 'Conferma Eliminazione', () => {
+                (async () => {
+                    try {
+                        await deleteDoc(doc(db, 'groupRules', ruleId));
+                        await logActivity("group_rule_deleted", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { ruleId: ruleId });
+                    } catch (error) {
+                        console.error('Errore eliminazione regola:', error);
+                        showAlert('Errore durante l\'eliminazione.');
+                    }
+                })();
+            });
         };
 
         const toggleRuleStatus = async (ruleId, currentStatus) => {
@@ -5034,26 +5078,27 @@
         const deleteUsefulNumber = async (id) => {
             // Controllo accesso: solo supervisore può eliminare contatti
             if (userProfile?.tipoUtente !== 'supervisore') {
-                alert('Non hai i permessi per eliminare contatti. Solo i supervisori possono eseguire questa operazione.');
+                showAlert('Non hai i permessi per eliminare contatti. Solo i supervisori possono eseguire questa operazione.');
                 return;
             }
             
-            if (!confirm('Sei sicuro di voler eliminare questo numero?')) {
-                return;
-            }
-            try {
-                await deleteDoc(doc(db, 'usefulNumbers', id));
-                await logActivity("useful_number_deleted", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { deletedId: id });
-            } catch (error) {
-                console.error("Errore durante l'eliminazione del numero:", error);
-                alert("Si è verificato un errore durante l'eliminazione.");
-            }
+            showConfirm('Sei sicuro di voler eliminare questo numero?', 'Conferma Eliminazione', () => {
+                (async () => {
+                    try {
+                        await deleteDoc(doc(db, 'usefulNumbers', id));
+                        await logActivity("useful_number_deleted", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { deletedId: id });
+                    } catch (error) {
+                        console.error("Errore durante l'eliminazione del numero:", error);
+                        showAlert("Si è verificato un errore durante l'eliminazione.");
+                    }
+                })();
+            });
         };
 
         const editUsefulNumber = async (id, currentData) => {
             // Controllo accesso: solo supervisore può modificare contatti
             if (userProfile?.tipoUtente !== 'supervisore') {
-                alert('Non hai i permessi per modificare contatti. Solo i supervisori possono eseguire questa operazione.');
+                showAlert('Non hai i permessi per modificare contatti. Solo i supervisori possono eseguire questa operazione.');
                 return;
             }
 
@@ -5082,7 +5127,7 @@
                     const number2 = document.getElementById('edit-number-2').value.trim();
 
                     if (!title || !number) {
-                        alert('I campi "INTERVENTO RICHIESTO" e "1 NUM. TELEFONICO" sono obbligatori.');
+                        showAlert('I campi "INTERVENTO RICHIESTO" e "1 NUM. TELEFONICO" sono obbligatori.');
                         return;
                     }
 
@@ -5094,7 +5139,7 @@
                         hideModal();
                     } catch (error) {
                         console.error("Errore durante l'aggiornamento del numero:", error);
-                        alert("Si è verificato un errore durante l'aggiornamento.");
+                        showAlert("Si è verificato un errore durante l'aggiornamento.");
                     }
                 });
             }
@@ -5103,23 +5148,23 @@
         const deleteMultipleUsefulNumbers = async (ids) => {
             // Controllo accesso: solo supervisore può eliminare contatti
             if (userProfile?.tipoUtente !== 'supervisore') {
-                alert('Non hai i permessi per eliminare contatti. Solo i supervisori possono eseguire questa operazione.');
+                showAlert('Non hai i permessi per eliminare contatti. Solo i supervisori possono eseguire questa operazione.');
                 return;
             }
 
-            if (!confirm(`Sei sicuro di voler eliminare ${ids.length} contatti?`)) {
-                return;
-            }
-
-            try {
-                const deletePromises = ids.map(id => deleteDoc(doc(db, 'usefulNumbers', id)));
-                await Promise.all(deletePromises);
-                await logActivity("useful_numbers_bulk_deleted", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { deletedCount: ids.length });
-                alert(`${ids.length} contatti eliminati con successo.`);
-            } catch (error) {
-                console.error("Errore durante l'eliminazione multipla:", error);
-                alert("Si è verificato un errore durante l'eliminazione multipla.");
-            }
+            showConfirm(`Sei sicuro di voler eliminare ${ids.length} contatti?`, 'Conferma Eliminazione', () => {
+                (async () => {
+                    try {
+                        const deletePromises = ids.map(id => deleteDoc(doc(db, 'usefulNumbers', id)));
+                        await Promise.all(deletePromises);
+                        await logActivity("useful_numbers_bulk_deleted", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { deletedCount: ids.length });
+                        showAlert(`${ids.length} contatti eliminati con successo.`);
+                    } catch (error) {
+                        console.error("Errore durante l'eliminazione multipla:", error);
+                        showAlert("Si è verificato un errore durante l'eliminazione multipla.");
+                    }
+                })();
+            });
         };
 
         // Funzioni helper per le operazioni bulk
@@ -5149,7 +5194,7 @@
             const selectedIds = Array.from(selectedCheckboxes).map(cb => cb.value);
             
             if (selectedIds.length === 0) {
-                alert('Nessun contatto selezionato.');
+                showAlert('Nessun contatto selezionato.');
                 return;
             }
             
@@ -5183,7 +5228,7 @@
             const selectedIds = Array.from(selectedCheckboxes).map(cb => cb.value);
             
             if (selectedIds.length === 0) {
-                alert('Nessun contatto selezionato.');
+                showAlert('Nessun contatto selezionato.');
                 return;
             }
             
@@ -5217,7 +5262,7 @@
             const selectedIndices = Array.from(selectedCheckboxes).map(cb => parseInt(cb.value));
             
             if (selectedIndices.length === 0) {
-                alert('Nessun contatto selezionato.');
+                showAlert('Nessun contatto selezionato.');
                 return;
             }
             
@@ -5227,7 +5272,7 @@
         const editImportedContact = async (index, currentData) => {
             // Controllo accesso: solo supervisore può modificare contatti
             if (userProfile?.tipoUtente !== 'supervisore') {
-                alert('Non hai i permessi per modificare contatti. Solo i supervisori possono eseguire questa operazione.');
+                showAlert('Non hai i permessi per modificare contatti. Solo i supervisori possono eseguire questa operazione.');
                 return;
             }
 
@@ -5261,7 +5306,7 @@
                         const snapshot = await getDocs(qImported);
                         
                         if (snapshot.empty) {
-                            alert("Impossibile trovare i dati importati.");
+                            showAlert("Impossibile trovare i dati importati.");
                             return;
                         }
                         
@@ -5284,7 +5329,7 @@
                         hideModal();
                     } catch (error) {
                         console.error("Errore durante l'aggiornamento del contatto importato:", error);
-                        alert("Si è verificato un errore durante l'aggiornamento.");
+                        showAlert("Si è verificato un errore durante l'aggiornamento.");
                     }
                 });
             }
@@ -5293,74 +5338,74 @@
         const deleteImportedContact = async (index) => {
             // Controllo accesso: solo supervisore può eliminare contatti
             if (userProfile?.tipoUtente !== 'supervisore') {
-                alert('Non hai i permessi per eliminare contatti. Solo i supervisori possono eseguire questa operazione.');
+                showAlert('Non hai i permessi per eliminare contatti. Solo i supervisori possono eseguire questa operazione.');
                 return;
             }
 
-            if (!confirm('Sei sicuro di voler eliminare questo contatto importato?')) {
-                return;
-            }
-
-            try {
-                const qImported = query(collection(db, "importedPhoneNumbers"), orderBy("uploadedAt", "desc"), limit(1));
-                const snapshot = await getDocs(qImported);
-                
-                if (snapshot.empty) {
-                    alert("Impossibile trovare i dati importati.");
-                    return;
-                }
-                
-                const docRef = snapshot.docs[0].ref;
-                const docData = snapshot.docs[0].data();
-                const updatedData = docData.tableData.filter((_, i) => i !== index);
-                
-                await updateDoc(docRef, { tableData: updatedData });
-                await logActivity("imported_contact_deleted", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { deletedIndex: index });
-                
-                alert("Contatto eliminato con successo.");
-            } catch (error) {
-                console.error("Errore durante l'eliminazione del contatto importato:", error);
-                alert("Si è verificato un errore durante l'eliminazione.");
-            }
+            showConfirm('Sei sicuro di voler eliminare questo contatto importato?', 'Conferma Eliminazione', () => {
+                (async () => {
+                    try {
+                        const qImported = query(collection(db, "importedPhoneNumbers"), orderBy("uploadedAt", "desc"), limit(1));
+                        const snapshot = await getDocs(qImported);
+                        
+                        if (snapshot.empty) {
+                            showAlert("Impossibile trovare i dati importati.");
+                            return;
+                        }
+                        
+                        const docRef = snapshot.docs[0].ref;
+                        const docData = snapshot.docs[0].data();
+                        const updatedData = docData.tableData.filter((_, i) => i !== index);
+                        
+                        await updateDoc(docRef, { tableData: updatedData });
+                        await logActivity("imported_contact_deleted", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { deletedIndex: index });
+                        
+                        showAlert("Contatto eliminato con successo.");
+                    } catch (error) {
+                        console.error("Errore durante l'eliminazione del contatto importato:", error);
+                        showAlert("Si è verificato un errore durante l'eliminazione.");
+                    }
+                })();
+            });
         };
 
         const deleteMultipleImportedContacts = async (indices) => {
             // Controllo accesso: solo supervisore può eliminare contatti
             if (userProfile?.tipoUtente !== 'supervisore') {
-                alert('Non hai i permessi per eliminare contatti. Solo i supervisori possono eseguire questa operazione.');
+                showAlert('Non hai i permessi per eliminare contatti. Solo i supervisori possono eseguire questa operazione.');
                 return;
             }
 
-            if (!confirm(`Sei sicuro di voler eliminare ${indices.length} contatti importati?`)) {
-                return;
-            }
-
-            try {
-                const qImported = query(collection(db, "importedPhoneNumbers"), orderBy("uploadedAt", "desc"), limit(1));
-                const snapshot = await getDocs(qImported);
-                
-                if (snapshot.empty) {
-                    alert("Impossibile trovare i dati importati.");
-                    return;
-                }
-                
-                const docRef = snapshot.docs[0].ref;
-                const docData = snapshot.docs[0].data();
-                const updatedData = docData.tableData.filter((_, i) => !indices.includes(i));
-                
-                await updateDoc(docRef, { tableData: updatedData });
-                await logActivity("imported_contacts_bulk_deleted", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { deletedCount: indices.length });
-                
-                alert(`${indices.length} contatti eliminati con successo.`);
-            } catch (error) {
-                console.error("Errore durante l'eliminazione multipla dei contatti importati:", error);
-                alert("Si è verificato un errore durante l'eliminazione multipla.");
-            }
+            showConfirm(`Sei sicuro di voler eliminare ${indices.length} contatti importati?`, 'Conferma Eliminazione', () => {
+                (async () => {
+                    try {
+                        const qImported = query(collection(db, "importedPhoneNumbers"), orderBy("uploadedAt", "desc"), limit(1));
+                        const snapshot = await getDocs(qImported);
+                        
+                        if (snapshot.empty) {
+                            showAlert("Impossibile trovare i dati importati.");
+                            return;
+                        }
+                        
+                        const docRef = snapshot.docs[0].ref;
+                        const docData = snapshot.docs[0].data();
+                        const updatedData = docData.tableData.filter((_, i) => !indices.includes(i));
+                        
+                        await updateDoc(docRef, { tableData: updatedData });
+                        await logActivity("imported_contacts_bulk_deleted", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { deletedCount: indices.length });
+                        
+                        showAlert(`${indices.length} contatti eliminati con successo.`);
+                    } catch (error) {
+                        console.error("Errore durante l'eliminazione multipla dei contatti importati:", error);
+                        showAlert("Si è verificato un errore durante l'eliminazione multipla.");
+                    }
+                })();
+            });
         };
 
         const editImportedScheduleEntry = async (index, currentData) => {
             if (userProfile?.tipoUtente !== 'supervisore') {
-                alert('Non hai i permessi per modificare questa voce.');
+                showAlert('Non hai i permessi per modificare questa voce.');
                 return;
             }
 
@@ -5395,17 +5440,17 @@
                     hideModal();
                 } catch (error) {
                     console.error("Errore aggiornamento orario:", error);
-                    alert("Si è verificato un errore durante l'aggiornamento.");
+                    showAlert("Si è verificato un errore durante l'aggiornamento.");
                 }
             });
         };
 
         const deleteImportedScheduleEntry = async (index) => {
             if (userProfile?.tipoUtente !== 'supervisore') {
-                alert('Non hai i permessi per eliminare questa voce.');
+                showAlert('Non hai i permessi per eliminare questa voce.');
                 return;
             }
-            if (!confirm('Sei sicuro di voler eliminare questa riga dagli orari?')) return;
+            showConfirm('Sei sicuro di voler eliminare questa riga dagli orari?', 'Conferma Eliminazione', () => {
 
             try {
                 const qSchedule = query(collection(db, "importedCustodeSchedule"), orderBy("uploadedAt", "desc"), limit(1));
@@ -5419,7 +5464,7 @@
                 await logActivity("custode_schedule_deleted", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { deletedIndex: index });
             } catch (error) {
                 console.error("Errore eliminazione orario:", error);
-                alert("Si è verificato un errore durante l'eliminazione.");
+                showAlert("Si è verificato un errore durante l'eliminazione.");
             }
         };
 
@@ -5448,13 +5493,13 @@
                     await logActivity("admin_data_updated", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { updatedIndex: index });
                     hideModal();
                 } catch (error) {
-                    alert("Si è verificato un errore durante l'aggiornamento.");
+                    showAlert("Si è verificato un errore durante l'aggiornamento.");
                 }
             });
         };
 
         const deleteImportedAdminEntry = async (index) => {
-            if (userProfile?.tipoUtente !== 'supervisore' || !confirm('Sei sicuro di voler eliminare questa voce?')) return;
+            if (userProfile?.tipoUtente !== 'supervisore') { showAlert('Non hai i permessi per eliminare questa voce.'); return; } showConfirm('Sei sicuro di voler eliminare questa voce?', 'Conferma Eliminazione', () => {
             try {
                 const q = query(collection(db, "importedAdminData"), orderBy("uploadedAt", "desc"), limit(1));
                 const snapshot = await getDocs(q);
@@ -5464,7 +5509,7 @@
                 await updateDoc(docRef, { tableData: updatedData });
                 await logActivity("admin_data_deleted", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { deletedIndex: index });
             } catch (error) {
-                alert("Si è verificato un errore durante l'eliminazione.");
+                showAlert("Si è verificato un errore durante l'eliminazione.");
             }
         };
 
@@ -5495,7 +5540,7 @@
             const selectedIndices = Array.from(selectedCheckboxes).map(cb => parseInt(cb.value));
             
             if (selectedIndices.length === 0) {
-                alert('Nessun contatto selezionato.');
+                showAlert('Nessun contatto selezionato.');
                 return;
             }
             
@@ -5775,7 +5820,7 @@
 
         const editCustodeScheduleEntry = async (docId, index, currentData) => {
             if (userProfile?.tipoUtente !== 'supervisore') {
-                alert('Non hai i permessi per modificare gli orari.');
+                showAlert('Non hai i permessi per modificare gli orari.');
                 return;
             }
 
@@ -5822,19 +5867,19 @@
                     hideModal();
                 } catch (error) {
                     console.error("Errore aggiornamento orario:", error);
-                    alert("Errore durante il salvataggio: " + error.message);
+                    showAlert("Errore durante il salvataggio: " + error.message);
                     submitBtn.disabled = false;
                     submitBtn.textContent = 'Salva';
                 }
-            };
+            });
         };
 
         const deleteCustodeScheduleEntry = async (docId, index) => {
             if (userProfile?.tipoUtente !== 'supervisore') {
-                alert('Non hai i permessi per eliminare orari.');
+                showAlert('Non hai i permessi per eliminare orari.');
                 return;
             }
-            if (!confirm('Sei sicuro di voler eliminare questa riga di orario?')) return;
+            showConfirm('Sei sicuro di voler eliminare questa riga di orario?', 'Conferma Eliminazione', () => {
 
             try {
                 const docRef = doc(db, "importedCustodeSchedule", docId);
@@ -5850,7 +5895,7 @@
                 await logActivity("custode_schedule_entry_deleted", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { deletedIndex: index });
             } catch (error) {
                 console.error("Errore eliminazione orario:", error);
-                alert("Errore durante l'eliminazione: " + error.message);
+                showAlert("Errore durante l'eliminazione: " + error.message);
             }
         };
 
@@ -5947,7 +5992,7 @@
                 option1: ['supervisore', 'amministratore', 'consigliere'],
                 option2: ['supervisore', 'amministratore', 'consigliere', 'condomino'],
                 option3: ['supervisore', 'consigliere']
-            };
+            });
             const roles = allowedRoles[setting] || allowedRoles['option2'];
             
             // Check if user is a condomino (including condomino2, condomino3, etc.)
@@ -6327,7 +6372,7 @@ if (userRole === 'adm' || userRole === 'amministratore' || userRole === 'supervi
                     return timeB - timeA;
                 });
                 mainContainer.innerHTML = sortedDocs.map(doc => renderReportCardHTML(doc.data(), doc.id)).join("");
-            };
+            });
 
             let reportsQuery;
 
@@ -6509,7 +6554,7 @@ if (userRole === 'adm' || userRole === 'amministratore' || userRole === 'supervi
         };
 
         const deleteUser = async (userId, userName) => {
-            if (!confirm(`Sei sicuro di voler eliminare l'utente ${userName}? L'utente verrà rimosso dal sistema e non potrà più accedere. L'azione è irreversibile.`)) {
+            showConfirm(`Sei sicuro di voler eliminare l'utente ${userName}? L'utente verrà rimosso dal sistema e non potrà più accedere. L'azione è irreversibile.`, 'Conferma Eliminazione', () => {
                 return;
             }
             try {
@@ -6521,7 +6566,7 @@ if (userRole === 'adm' || userRole === 'amministratore' || userRole === 'supervi
                 loadUsers(); // Ricarica la lista per riflettere il cambiamento
             } catch (error) {
                 console.error("Errore durante l'eliminazione dell'utente:", error);
-                alert(`Si è verificato un errore: ${error.message}`);
+                showAlert(`Si è verificato un errore: ${error.message}`);
             }
         };
 
@@ -6782,7 +6827,7 @@ if (userRole === 'adm' || userRole === 'amministratore' || userRole === 'supervi
                 '2 num.Telefonico': '2 NUM. TELEFONICO',
                 '2 num. Telefonico': '2 NUM. TELEFONICO',
                 'Azione': 'AZIONE'
-            };
+            });
             
             // Trova le colonne corrispondenti nell'ordine desiderato
             const orderedHeaders = [];
@@ -6976,7 +7021,7 @@ if (userRole === 'adm' || userRole === 'amministratore' || userRole === 'supervi
                 const settingsSnap = await getDoc(settingsRef);
                 const pollSetting = settingsSnap.exists() ? settingsSnap.data().setting : "option2";
                 if (!isUserAllowedToVote(userProfile.tipoUtente, pollSetting)) {
-                    return alert("Non sei autorizzato a votare in questo sondaggio.");
+                    return showAlert("Non sei autorizzato a votare in questo sondaggio.");
                 }
 
                 const pollRef = doc(db, "polls", pollId);
@@ -6984,7 +7029,7 @@ if (userRole === 'adm' || userRole === 'amministratore' || userRole === 'supervi
                 if (!pollSnap.exists()) return;
 
                 const poll = pollSnap.data();
-                if (poll.deadline && poll.deadline.toDate() < new Date()) return alert("Sondaggio scaduto.");
+                if (poll.deadline && poll.deadline.toDate() < new Date()) return showAlert("Sondaggio scaduto.");
 
                 const updatedOptions = [...poll.options];
                 let updatedVoters = [...poll.voters || []];
@@ -7011,7 +7056,7 @@ if (userRole === 'adm' || userRole === 'amministratore' || userRole === 'supervi
                     newSelectedOptionsText.push(poll.options[optionIndex].text);
                 } else { // Risposta multipla
                     const checkedBoxes = document.querySelectorAll(`.poll-option-checkbox-${pollId}:checked`);
-                    if (checkedBoxes.length === 0) return alert("Seleziona almeno un'opzione per votare.");
+                    if (checkedBoxes.length === 0) return showAlert("Seleziona almeno un'opzione per votare.");
                     
                     checkedBoxes.forEach(box => {
                         const idx = parseInt(box.value, 10);
@@ -7040,7 +7085,7 @@ if (userRole === 'adm' || userRole === 'amministratore' || userRole === 'supervi
 
             } catch (error) {
                 console.error("Errore nel voto:", error);
-                alert("Si è verificato un errore durante il voto.");
+                showAlert("Si è verificato un errore durante il voto.");
             }
         };
 
@@ -7065,7 +7110,7 @@ if (userRole === 'adm' || userRole === 'amministratore' || userRole === 'supervi
                 await logActivity("report_status_updated", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { reportId: reportId, newStatus: newStatus });
             } catch (error) {
                 console.error("Errore nell'aggiornamento dello stato:", error);
-                alert("Si è verificato un errore.");
+                showAlert("Si è verificato un errore.");
             }
         };
 
@@ -7105,13 +7150,13 @@ if (userRole === 'adm' || userRole === 'amministratore' || userRole === 'supervi
                     hideModal();
                 } catch (error) {
                     console.error("Errore nell'aggiungere l'aggiornamento:", error);
-                    alert("Si è verificato un errore.");
+                    showAlert("Si è verificato un errore.");
                 }
             });
         };
 
         const sendReportReminder = async (reportId) => {
-            if (!confirm("Vuoi inviare un sollecito per questa segnalazione?")) return;
+            showConfirm("Vuoi inviare un sollecito per questa segnalazione?", 'Conferma Sollecito', () => {
             try {
                 const reportRef = doc(db, "reports", reportId);
                 await runTransaction(db, async (transaction) => {
@@ -7133,10 +7178,10 @@ if (userRole === 'adm' || userRole === 'amministratore' || userRole === 'supervi
                     });
                 });
                 await logActivity("report_reminder_sent", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { reportId: reportId });
-                alert("Sollecito inviato.");
+                showAlert("Sollecito inviato.");
             } catch (error) {
                 console.error("Errore nell'invio del sollecito:", error);
-                alert("Si è verificato un errore.");
+                showAlert("Si è verificato un errore.");
             }
         };
 
@@ -7144,7 +7189,7 @@ if (userRole === 'adm' || userRole === 'amministratore' || userRole === 'supervi
             if (isResolved) {
                 await updateReportStatus(reportId, 'chiusa', 'Utente ha confermato la risoluzione.');
             } else {
-                if (confirm("Sei sicuro che il problema non sia stato risolto? La segnalazione verrà riaperta.")) {
+                showConfirm("Sei sicuro che il problema non sia stato risolto? La segnalazione verrà riaperta.", 'Conferma Riapertura', () => {
                     await updateReportStatus(reportId, 'aperta', 'Utente ha indicato che il problema non è risolto. Segnalazione riaperta.');
                 }
             }
@@ -7211,11 +7256,11 @@ if (userRole === 'adm' || userRole === 'amministratore' || userRole === 'supervi
                 });
                 
                 hideModal();
-                alert(`Segnalazione riassegnata con successo a: ${newRecipient}.`);
+                showAlert(`Segnalazione riassegnata con successo a: ${newRecipient}.`);
 
             } catch (error) {
                 console.error("Errore durante la riassegnazione:", error);
-                alert("Si è verificato un errore durante la riassegnazione.");
+                showAlert("Si è verificato un errore durante la riassegnazione.");
             }
         };
         const loadStorageItems = async (path) => {
@@ -7356,7 +7401,7 @@ if (userRole === 'adm' || userRole === 'amministratore' || userRole === 'supervi
                 const res = await listAll(listRef);
                 const children = await Promise.all(res.prefixes.map(folderRef => getFolderTree(folderRef.fullPath)));
                 return { name: path.split('/').filter(Boolean).pop() || 'Archivio', path, children };
-            };
+            });
 
             const renderFolderTree = (node, level = 0) => {
                 let html = `
@@ -7391,29 +7436,31 @@ if (userRole === 'adm' || userRole === 'amministratore' || userRole === 'supervi
 
         const handleRenameFolder = async (oldPath) => {
             const oldName = oldPath.split('/').filter(Boolean).pop();
-            const newName = prompt("Inserisci il nuovo nome per la cartella:", oldName);
+            showPrompt("Inserisci il nuovo nome per la cartella:", 'Rinomina Cartella', oldName, (newName) => {
+                if (!newName || newName.trim() === '' || newName.includes('/')) {
+                    showAlert("Nome non valido.");
+                    return;
+                }
+                if (newName === oldName) return;
 
-            if (!newName || newName.trim() === '' || newName.includes('/')) {
-                alert("Nome non valido.");
-                return;
-            }
-            if (newName === oldName) return;
+                const parentPath = oldPath.substring(0, oldPath.lastIndexOf(oldName));
+                const newPath = parentPath + newName.trim() + '/';
 
-            const parentPath = oldPath.substring(0, oldPath.lastIndexOf(oldName));
-            const newPath = parentPath + newName.trim() + '/';
+                showModal('Ridenominazione in corso...', '<p>Questa operazione potrebbe richiedere alcuni istanti. Non chiudere la pagina.</p>');
 
-            showModal('Ridenominazione in corso...', '<p>Questa operazione potrebbe richiedere alcuni istanti. Non chiudere la pagina.</p>');
-
-            try {
-                await moveFolderContents(oldPath, newPath);
-                await logActivity("folder_renamed", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { from: oldPath, to: newPath });
-                hideModal();
-                loadStorageItems(currentStoragePath);
-            } catch (error) {
-                console.error("Errore durante la ridenominazione:", error);
-                hideModal();
-                alert(`Errore: ${error.message}`);
-            }
+                (async () => {
+                    try {
+                        await moveFolderContents(oldPath, newPath);
+                        await logActivity("folder_renamed", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { from: oldPath, to: newPath });
+                        hideModal();
+                        loadStorageItems(currentStoragePath);
+                    } catch (error) {
+                        console.error("Errore durante la ridenominazione:", error);
+                        hideModal();
+                        showAlert(`Errore: ${error.message}`);
+                    }
+                })();
+            });
         };
 
         const moveFolderContents = async (oldPath, newPath) => {
@@ -7435,21 +7482,24 @@ if (userRole === 'adm' || userRole === 'amministratore' || userRole === 'supervi
 };
 
         const handleCreateFolder = async () => {
-            const folderName = prompt("Inserisci il nome della nuova cartella:");
-            if (!folderName || folderName.trim() === '') return;
+            showPrompt("Inserisci il nome della nuova cartella:", 'Nuova Cartella', '', (folderName) => {
+                if (!folderName || folderName.trim() === '') return;
 
-            // In Storage, le cartelle sono create caricando un file placeholder al loro interno.
-            const placeholderPath = `${currentStoragePath}${folderName.trim()}/.placeholder`;
-            const placeholderRef = ref(storage, placeholderPath);
+                // In Storage, le cartelle sono create caricando un file placeholder al loro interno.
+                const placeholderPath = `${currentStoragePath}${folderName.trim()}/.placeholder`;
+                const placeholderRef = ref(storage, placeholderPath);
 
-            try {
-                await uploadBytes(placeholderRef, new Blob()); // Carica un file vuoto
-                await logActivity("folder_created", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { path: `${currentStoragePath}${folderName.trim()}` });
-                loadStorageItems(currentStoragePath); // Refresh list
-            } catch (error) {
-                console.error("Errore nella creazione della cartella:", error);
-                alert(`Impossibile creare la cartella: ${error.message}`);
-            }
+                (async () => {
+                    try {
+                        await uploadBytes(placeholderRef, new Blob()); // Carica un file vuoto
+                        await logActivity("folder_created", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { path: `${currentStoragePath}${folderName.trim()}` });
+                        loadStorageItems(currentStoragePath); // Refresh list
+                    } catch (error) {
+                        console.error("Errore nella creazione della cartella:", error);
+                        showAlert(`Impossibile creare la cartella: ${error.message}`);
+                    }
+                })();
+            });
         };
 
         const handleDownloadFile = async (fullPath, fileName) => {
@@ -7464,13 +7514,13 @@ if (userRole === 'adm' || userRole === 'amministratore' || userRole === 'supervi
                 document.body.removeChild(link);
             } catch (error) {
                 console.error("Errore nel download:", error);
-                alert(`Impossibile scaricare il file: ${error.message}`);
+                showAlert(`Impossibile scaricare il file: ${error.message}`);
             }
         };
 
         const handleDeleteItem = async (fullPath, isFolder) => {
             const itemType = isFolder ? "cartella" : "file";
-            if (!confirm(`Sei sicuro di voler eliminare questo ${itemType}? L'azione è irreversibile.`)) return;
+            showConfirm(`Sei sicuro di voler eliminare questo ${itemType}? L'azione è irreversibile.`, 'Conferma Eliminazione', () => {
 
             if (isFolder) {
                 // La cancellazione di cartelle non vuote non è supportata direttamente dal client SDK.
@@ -7479,7 +7529,7 @@ if (userRole === 'adm' || userRole === 'amministratore' || userRole === 'supervi
                 const listRef = ref(storage, fullPath);
                 const res = await listAll(listRef);
                 if (res.items.length > 1 || res.prefixes.length > 0) {
-                    alert("Impossibile eliminare cartelle non vuote dall'app. Si prega di svuotare prima la cartella.");
+                    showAlert("Impossibile eliminare cartelle non vuote dall'app. Si prega di svuotare prima la cartella.");
                     return;
                 }
                 // Se è vuota (o contiene solo il placeholder), elimina il placeholder.
@@ -7497,7 +7547,7 @@ if (userRole === 'adm' || userRole === 'amministratore' || userRole === 'supervi
                          loadStorageItems(currentStoragePath); // Ricarica per rimuoverla dalla vista
                     } else {
                         console.error(`Errore eliminazione cartella:`, error);
-                        alert(`Impossibile eliminare la cartella: ${error.message}`);
+                        showAlert(`Impossibile eliminare la cartella: ${error.message}`);
                     }
                 }
             } else {
@@ -7509,7 +7559,7 @@ if (userRole === 'adm' || userRole === 'amministratore' || userRole === 'supervi
                     loadStorageItems(currentStoragePath);
                 } catch (error) {
                     console.error(`Errore eliminazione file:`, error);
-                    alert(`Impossibile eliminare il file: ${error.message}`);
+                    showAlert(`Impossibile eliminare il file: ${error.message}`);
                 }
             }
         };
@@ -7622,16 +7672,17 @@ if (userRole === 'adm' || userRole === 'amministratore' || userRole === 'supervi
         window.handleBulkDelete = handleBulkDelete;
 
         const deletePoll = async (pollId) => {
-            if (!confirm('Sei sicuro di voler eliminare questo sondaggio? L\'azione è irreversibile.')) {
-                return;
-            }
-            try {
-                await deleteDoc(doc(db, 'polls', pollId));
-                await logActivity("poll_deleted", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { deletedPollId: pollId });
-            } catch (error) {
-                console.error("Errore durante l'eliminazione del sondaggio:", error);
-                alert("Si è verificato un errore durante l'eliminazione.");
-            }
+            showConfirm('Sei sicuro di voler eliminare questo sondaggio? L\'azione è irreversibile.', 'Conferma Eliminazione', () => {
+                (async () => {
+                    try {
+                        await deleteDoc(doc(db, 'polls', pollId));
+                        await logActivity("poll_deleted", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { deletedPollId: pollId });
+                    } catch (error) {
+                        console.error("Errore durante l'eliminazione del sondaggio:", error);
+                        showAlert("Si è verificato un errore durante l'eliminazione.");
+                    }
+                })();
+            });
         };
 
         window.updateUser = updateUser;
