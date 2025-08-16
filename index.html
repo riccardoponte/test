@@ -4050,6 +4050,7 @@
                 appLogoLabel: "Logo (File Immagine)", // Updated label for file input
                 addAppButton: "Aggiungi app",
                 addAppSuccess: "App aggiunta con successo!",
+                appUpdateSuccess: "App aggiornata con successo!",
                 addAppError: "Errore nell'aggiunta dell'app: %s",
                 markAsFeatured: "Segna come In evidenza",
                 unmarkAsFeatured: "Rimuovi da In evidenza",
@@ -4065,7 +4066,12 @@
                 selectAppToFeature: "Seleziona un'app dalLibreria per metterla In evidenza:", // New translation
                 noUserApps: "Non hai ancora aggiunto app person.", // New translation
                 removeFeaturedReplacement: "Rimuovi Sostituzione", // New translation
-                removeUserTool: "Rimuovi App Custom", // New translation for removing user tools
+                removeUserTool: "Rimuovi App Custom",
+                editUserTool: "Modifica App Custom",
+                editAppTitle: "Modifica App",
+                deleteButton: "Elimina",
+                saveChanges: "Salva Modifiche",
+                confirmDeleteApp: "Sei sicuro di voler eliminare questa app? L'azione è irreversibile.",
                 changeNicknameTitle: "Cambia nickname",
                 saveNicknameButton: "Salva Nickname",
                 nicknameUpdateSuccess: "Nickname aggiornato con successo!",
@@ -4158,6 +4164,7 @@
                 appLogoLabel: "Logo (Image File)", // Updated label for file input
                 addAppButton: "Add App",
                 addAppSuccess: "App added successfully!",
+                appUpdateSuccess: "App updated successfully!",
                 addAppError: "Error adding app: %s",
                 markAsFeatured: "Mark as Featured",
                 unmarkAsFeatured: "Unmark as Featured",
@@ -4173,7 +4180,12 @@
                 selectAppToFeature: "Select an app from your library to feature it:", // New translation
                 noUserApps: "You haven't added any custom apps yet.", // New translation
                 removeFeaturedReplacement: "Remove Replacement", // New translation
-                removeUserTool: "Remove Custom App", // New translation for removing user tools
+                removeUserTool: "Remove Custom App",
+                editUserTool: "Edit Custom App",
+                editAppTitle: "Edit App",
+                deleteButton: "Delete",
+                saveChanges: "Save Changes",
+                confirmDeleteApp: "Are you sure you want to delete this app? This action is irreversible.",
                 changeNicknameTitle: "Change Nickname",
                 saveNicknameButton: "Save Nickname",
                 nicknameUpdateSuccess: "Nickname updated successfully!",
@@ -4642,6 +4654,58 @@
                 logoUrl: 'https://media.licdn.com/dms/image/v2/D4D0BAQH0sQKmhR7qCQ/company-logo_200_200/company-logo_200_200/0/1700736436872?e=2147483647&v=beta&t=1YbA2XVAeCHYbQjNbwqMQWMrhM2WIhUfeLg59-ubdGQ',
                 recommendationId: 'tool-012' 
             },
+            {
+                id: 'tool-make',
+                name: 'Make',
+                description: {
+                    it: 'Piattaforma alternativa a Zapier, che consente di creare automazioni potenti.',
+                    en: 'An alternative platform to Zapier, allowing for the creation of powerful automations.'
+                },
+                category: 'Automation Tools',
+                country: 'Europe',
+                website: 'https://www.make.com/en',
+                isFeatured: false,
+                logoUrl: 'https://cdn.prod.website-files.com/5f15081919fdf673994ab5fd/658d1160346d50ccbcb96f4d_Make-Logo.png'
+            },
+            {
+                id: 'tool-zapier',
+                name: 'Zapier',
+                description: {
+                    it: 'Piattaforma leader per l\'automazione dei flussi di lavoro che connette le tue app e servizi.',
+                    en: 'Leading workflow automation platform that connects your apps and services.'
+                },
+                category: 'Automation Tools',
+                country: 'USA',
+                website: 'https://zapier.com/',
+                isFeatured: false,
+                logoUrl: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRPA25fXEqg9J_i2So2i2U-324G2f_R-4-2vA&s'
+            },
+            {
+                id: 'tool-n8n',
+                name: 'N8N',
+                description: {
+                    it: 'Questa piattaforma si propone come la migliore sul mercato, consente di creare agenti ai avanzati e automazioni potenti.',
+                    en: 'This platform presents itself as the best on the market, allowing the creation of advanced AI agents and powerful automations.'
+                },
+                category: 'Automation Tools',
+                country: 'Europe',
+                website: 'https://n8n.io/',
+                isFeatured: false,
+                logoUrl: 'https://registry.npmmirror.com/@lobehub/icons-static-png/latest/files/dark/n8n-color.png'
+            },
+            {
+                id: 'tool-flowise',
+                name: 'Flowise',
+                description: {
+                    it: 'Questa piattaforma consente di creare agenti AI personalizzati.',
+                    en: 'This platform allows creating custom AI agents.'
+                },
+                category: 'Automation Tools',
+                country: 'Global',
+                website: 'https://flowiseai.com/',
+                isFeatured: false,
+                logoUrl: 'https://raw.githubusercontent.com/FlowiseAI/Flowise/main/packages/ui/src/assets/flowise_logo.png'
+            },
         ];
         
         // Funzione globale accessibile anche dallo script React
@@ -4658,6 +4722,7 @@
             { id: 'Presentazioni', name: { it: 'Presentazioni', en: 'Presentations' }, color: '#E13300' },
             { id: 'Codice', name: { it: 'Codice', en: 'Code' }, color: '#BA5D07' },
             { id: 'Audio', name: { it: 'Audio', en: 'Audio' }, color: '#006450' },
+            { id: 'Automation Tools', name: { it: 'Strumenti di Automazione', en: 'Automation Tools' }, color: '#008080' },
             // Add a generic category for user tools if needed, or let user specify
             // For simplicity, let's allow user to pick from existing categories
         ];
@@ -4816,9 +4881,9 @@
             const favoriteIconHTML = currentUser.uid ? `<div class="favorite-icon" data-action="toggle-favorite" data-id="${tool.id}">${isFavorited ? '♥' : '♡'}</div>` : '';
 
             let editIconHTML = '';
-            // Pencil icon is shown for user tools in the Library list if privileged
-            if (context === 'library' && isUserTool && currentUser.uid && currentUser.isPrivileged) {
-                 editIconHTML = `<div class="edit-icon" data-action="remove-user-tool" data-id="${tool.id}" title="${translations[currentLanguage].removeUserTool}"> ${pencilIcon} </div>`;
+            // Pencil icon is shown for user's own tools, allowing them to edit
+            if (isUserTool && currentUser.uid && tool.id.includes(currentUser.uid)) {
+                 editIconHTML = `<div class="edit-icon" data-action="open-edit-app-modal" data-id="${tool.id}" title="${translations[currentLanguage].editUserTool}"> ${pencilIcon} </div>`;
             }
 
             return `<div class="tool-card-list" data-id="${tool.id}"><div class="logo-container"><img src="${tool.logoUrl}" class="tool-logo" alt="${tool.name}" loading="lazy">${editIconHTML}</div><div class="info"><div class="tool-name">${tool.name}</div><div class="tool-subtext">${getTranslatedCategoryName(tool.category)}</div></div>${favoriteIconHTML}</div>`;
@@ -5647,7 +5712,7 @@
                                             <div class="tool-shelf-item" data-id="${tool.id}">
                                                 <div class="tool-shelf-logo-container">
                                                     <img src="${tool.logoUrl}" class="tool-logo" alt="${tool.name}" loading="lazy">
-                                                    <div class="edit-icon" data-action="remove-user-tool" data-id="${tool.id}" title="${t.removeUserTool}"> ${pencilIcon} </div>
+                                                    <div class="edit-icon" data-action="open-edit-app-modal" data-id="${tool.id}" title="${t.editUserTool}"> ${pencilIcon} </div>
                                                 </div>
                                                 <div class="tool-shelf-name">${tool.name}</div>
                                             </div>
@@ -6258,6 +6323,113 @@
                  showToast(t.addAppError.replace('%s', error.message));
              }
         };
+
+        // NEW FUNCTION: Open Edit App Modal
+        const openEditAppModal = (toolId) => {
+             if (!currentUser.uid) return;
+             const t = translations[currentLanguage];
+             const tool = (currentUser.userTools || []).find(t => t.id === toolId);
+             if (!tool) {
+                 showToast("App not found.");
+                 return;
+             }
+
+             const modalHTML = `
+                 <div id="edit-app-modal" class="modal-overlay visible">
+                     <div class="modal-content">
+                         <button class="modal-close-btn" data-action="close-modal">×</button>
+                         <h2 data-translate="editAppTitle">${t.editAppTitle}</h2>
+
+                         <div class="input-group" style="margin-top: 24px;">
+                             <label for="edit-app-name">${t.appNameLabel}</label>
+                             <input type="text" id="edit-app-name" value="${tool.name}">
+                         </div>
+                         <div class="input-group">
+                             <label for="edit-app-website">${t.appWebsiteLabel}</label>
+                             <input type="url" id="edit-app-website" value="${tool.website}">
+                         </div>
+
+                         <div style="display: flex; justify-content: space-between; gap: 12px; margin-top: 24px;">
+                            <button class="button" id="delete-app-btn" data-id="${tool.id}" style="background-color: #cc3333; flex-grow: 1;">${t.deleteButton}</button>
+                            <button class="button" id="update-app-btn" data-id="${tool.id}" style="flex-grow: 2;">${t.saveChanges}</button>
+                         </div>
+                     </div>
+                 </div>
+             `;
+             el.modalContainer.innerHTML = modalHTML;
+
+             document.getElementById('update-app-btn').addEventListener('click', (e) => {
+                const id = e.currentTarget.dataset.id;
+                handleUpdateApp(id);
+             });
+
+             document.getElementById('delete-app-btn').addEventListener('click', (e) => {
+                if (confirm(t.confirmDeleteApp)) {
+                    const id = e.currentTarget.dataset.id;
+                    removeUserTool(id);
+                }
+             });
+        };
+
+        // NEW FUNCTION: Handle app update
+        const handleUpdateApp = async (toolId) => {
+            if (!currentUser.uid) return;
+
+            const t = translations[currentLanguage];
+            const nameInput = document.getElementById('edit-app-name');
+            const websiteInput = document.getElementById('edit-app-website');
+
+            const newName = nameInput.value.trim();
+            const newWebsite = websiteInput.value.trim();
+
+            if (!newName) {
+                showToast(t.appNameRequired);
+                return;
+            }
+            if (!newWebsite) {
+                showToast(t.appWebsiteRequired);
+                return;
+            }
+
+            try {
+                new URL(newWebsite);
+            } catch (e) {
+                showToast("URL del sito web non valido.");
+                return;
+            }
+
+            const toolIndex = (currentUser.userTools || []).findIndex(t => t.id === toolId);
+
+            if (toolIndex === -1) {
+                showToast("App non trovata.");
+                return;
+            }
+
+            const updatedUserTools = [...currentUser.userTools];
+            updatedUserTools[toolIndex] = {
+                ...updatedUserTools[toolIndex],
+                name: newName,
+                website: newWebsite
+            };
+
+            const userDocRef = doc(db, "users", currentUser.uid);
+
+            try {
+                await updateDoc(userDocRef, {
+                    userTools: updatedUserTools
+                });
+
+                currentUser.userTools = updatedUserTools;
+
+                showToast(t.appUpdateSuccess);
+                closeModal();
+                renderView();
+            } catch (error) {
+                console.error("Errore durante l'aggiornamento dell'app:", error);
+                showToast(`Errore: ${error.message}`);
+            }
+        };
+
 
         // NEW FUNCTION: Add AI Suggestion
         window.addAiSuggestion = async () => {
@@ -6981,6 +7153,13 @@ const viewUserSuggestions = async (userId, userNickname) => {
                              openAddAppModal();
                          } else {
                              triggerAuthFlow(); // Se non è loggato, chiedi di accedere.
+                         }
+                         break;
+                    case 'open-edit-app-modal':
+                         if (currentUser.uid) {
+                            openEditAppModal(actionTarget.dataset.id);
+                         } else {
+                            triggerAuthFlow();
                          }
                          break;
                                         case 'toggle-user-featured': // Triggered by pencil on user featured apps in Library
