@@ -648,77 +648,7 @@
             color: var(--bg-color);
         }
 
-                /* --- INIZIO: Stili per Tabella Responsiva (Visualizzazione a Card) --- */
-        @media screen and (max-width: 768px) {
-            .data-table-container {
-                overflow-x: hidden; /* Nascondiamo lo scroll orizzontale non più necessario */
-            }
-
-            .data-table {
-                border: none;
-                width: 100%;
-            }
-
-            .data-table thead {
-                display: none; /* Nascondiamo l'intestazione originale su mobile */
-            }
-
-            .data-table tr {
-                display: block;
-                margin-bottom: 1rem;
-                background: var(--surface-color);
-                border-radius: var(--radius-md);
-                padding: 1rem;
-                border: 1px solid var(--surface-color-light);
-                box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-            }
-            
-            .data-table tr:hover {
-                background-color: var(--surface-color); /* Disattiviamo l'hover su tutta la riga */
-            }
-
-            .data-table td {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                padding: 0.75rem 0;
-                border-bottom: 1px solid var(--surface-color-light);
-                text-align: right; /* Allinea il valore a destra */
-                white-space: normal;
-                word-break: break-word;
-            }
-
-            .data-table tr td:last-child {
-                border-bottom: none;
-            }
-
-            /* La magia: creiamo un'etichetta usando l'attributo data-label */
-            .data-table td::before {
-                content: attr(data-label);
-                font-weight: 600;
-                color: var(--secondary-text);
-                text-align: left;
-                margin-right: 1rem;
-                flex-shrink: 0;
-            }
-            
-            /* Gestisce le colonne con rowspan che ora non hanno più senso */
-            .data-table td[rowspan] {
-                display: none; /* Nascondiamo le celle che contengono rowspan, i dati verranno mostrati nelle righe successive */
-            }
-            
-            /* Stile specifico per le celle che contengono solo azioni */
-            .data-table td .btn-icon, 
-            .data-table td .user-action-btn,
-            .data-table td .inline-edit-btn {
-                margin-left: auto; /* Allinea i pulsanti a destra quando sono l'unico contenuto */
-            }
-            
-            .data-table td .cell-content-wrapper {
-                justify-content: flex-end; /* Allinea il contenuto della cella a destra */
-            }
-        }
-        /* --- FINE: Stili per Tabella Responsiva --- */
+        
         .custom-dropdown-item:not(:last-child) {
             border-bottom: 1px solid var(--surface-color);
         }
@@ -3829,7 +3759,7 @@
                 // --- SECURITY BEST PRACTICE ---
                 // This URL should be stored in a secure backend or environment variable,
                 // not exposed in client-side code.
-                const MAKE_WEBHOOK_URL = "https://eomzj0cqj0dfwb3.m.pipedream.net";
+                const MAKE_WEBHOOK_URL = "https://hook.eu2.make.com/ytp02u2qlsoinvvt72r5tbrn8tw85awa";
 
                 try {
                     // 1. Fetch all registered user emails from Firestore.
