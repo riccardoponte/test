@@ -721,6 +721,15 @@
             object-fit: cover;
             cursor: pointer;
         }
+        
+        @keyframes spin {
+            from {
+                transform: rotate(0deg);
+            }
+            to {
+                transform: rotate(360deg);
+            }
+        }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
@@ -2031,7 +2040,7 @@
                     <p class="form-label" style="margin-bottom: 1.5rem; color: var(--secondary-text);">
                         Visualizza, modifica o elimina le voci esistenti.
                     </p>
-                    <div id="excel-table-container-orari-custode" class="data-table-container">
+                    <div id="excel-table-container-orari-custode-manual" class="data-table-container">
                         <p style="color:var(--secondary-text);">Nessun dato presente.</p>
                     </div>
                 </div>
@@ -2050,14 +2059,28 @@
                     <div class="form-group">
                         <label class="form-label">Carica File Orari Custode (.xlsx, .xls)</label>
                         <input type="file" id="excel-file-input-orari-custode" class="form-input" accept=".xlsx, .xls">
+                        <small style="color: var(--secondary-text); font-size: 0.85rem; margin-top: 0.25rem; display: block;">
+                            Dimensione massima: 10MB. Il file deve contenere almeno una colonna con dati.
+                        </small>
                     </div>
                     <div id="message-import-orari-custode" class="message-box"></div>
                     <div id="save-button-container-orari-custode" class="hidden mt-4">
-                        <button id="save-imported-data-btn-orari-custode" class="btn btn-primary w-full">Salva e Sostituisci Dati</button>
+                        <button id="save-imported-data-btn-orari-custode" class="btn btn-primary w-full">
+                            <span id="save-btn-text">Salva e Sostituisci Dati</span>
+                            <span id="save-btn-loading" class="hidden" style="display: inline-flex; align-items: center; gap: 0.5rem;">
+                                <svg class="animate-spin" style="width: 16px; height: 16px;" viewBox="0 0 24 24" fill="none">
+                                    <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" stroke-dasharray="31.416" stroke-dashoffset="31.416">
+                                        <animate attributeName="stroke-dasharray" dur="2s" values="0 31.416;15.708 15.708;0 31.416" repeatCount="indefinite"/>
+                                        <animate attributeName="stroke-dashoffset" dur="2s" values="0;-15.708;-31.416" repeatCount="indefinite"/>
+                                    </circle>
+                                </svg>
+                                Salvataggio...
+                            </span>
+                        </button>
                     </div>
                     <div class="mt-4">
                         <h4 class="section-title" style="font-size: 1rem; margin-bottom: 0.5rem;">Anteprima</h4>
-                        <div id="excel-table-container-orari-custode" class="data-table-container">
+                        <div id="excel-table-container-orari-custode-import" class="data-table-container">
                             <p style="color:var(--secondary-text);">Nessun file selezionato.</p>
                         </div>
                     </div>
@@ -2074,7 +2097,7 @@
                     <p class="form-label" style="color: var(--secondary-text); margin-bottom: 2rem;">
                         Elenco completo di tutti i dati relativi agli orari del custode. Le modifiche possono essere effettuate nella sezione "Gestione Manuale".
                     </p>
-                    <div id="excel-table-container-orari-custode" class="data-table-container">
+                    <div id="excel-table-container-orari-custode-view" class="data-table-container">
                         <p style="color:var(--secondary-text);">Caricamento dati...</p>
                     </div>
                 </div>
@@ -4414,12 +4437,23 @@
 
                         const findKey = (keywords, fallback) => headers.find(h => keywords.some(k => h.toLowerCase().includes(k))) || fallback;
                         
+                        const nominativo = document.getElementById('custodian-nominativo').value.trim();
+                        const lunVen = document.getElementById('custodian-lun-ven').value.trim();
+                        const sabato = document.getElementById('custodian-sabato').value.trim();
+                        const ruolo = document.getElementById('custodian-ruolo').value.trim();
+                        const telefono = document.getElementById('custodian-telefono').value.trim();
+                        
+                        // Validazione dei campi obbligatori
+                        if (!nominativo) {
+                            throw new Error('Il campo Nominativo è obbligatorio.');
+                        }
+                        
                         const newEntry = {
-                            [findKey(['nominativo'], 'Nominativo')]: document.getElementById('custodian-nominativo').value,
-                            [findKey(['lun - ven', 'lun-ven'], 'Lun - Ven')]: document.getElementById('custodian-lun-ven').value,
-                            [findKey(['sabato'], 'Sabato')]: document.getElementById('custodian-sabato').value,
-                            [findKey(['ruolo'], 'Ruolo')]: document.getElementById('custodian-ruolo').value,
-                            [findKey(['telefono'], 'Telefono')]: document.getElementById('custodian-telefono').value,
+                            [findKey(['nominativo'], 'Nominativo')]: nominativo,
+                            [findKey(['lun - ven', 'lun-ven'], 'Lun - Ven')]: lunVen,
+                            [findKey(['sabato'], 'Sabato')]: sabato,
+                            [findKey(['ruolo'], 'Ruolo')]: ruolo,
+                            [findKey(['telefono'], 'Telefono')]: telefono,
                         };
 
                         tableData.push(newEntry);
@@ -4455,11 +4489,11 @@
                 });
             }
 
-            loadAndRenderCustodianSchedule('excel-table-container-orari-custode', true);
+            loadAndRenderCustodianSchedule('excel-table-container-orari-custode-manual', true);
         };
 
         const setupOrariCustodeVisualizzaHandlers = () => {
-            loadAndRenderCustodianSchedule('excel-table-container-orari-custode', false);
+            loadAndRenderCustodianSchedule('excel-table-container-orari-custode-view', false);
         };
 
         const loadAndRenderAdminData = (containerId, isEditable) => {
@@ -4653,7 +4687,7 @@
 
         const setupOrariCustodeImportHandlers = async () => {
             const fileInputOrariCustode = document.getElementById('excel-file-input-orari-custode');
-            const tableContainerOrariCustode = document.getElementById('excel-table-container-orari-custode');
+            const tableContainerOrariCustode = document.getElementById('excel-table-container-orari-custode-import');
             const messageBoxOrariCustode = document.getElementById('message-import-orari-custode');
             const saveBtnContainerOrariCustode = document.getElementById('save-button-container-orari-custode');
             const saveBtnOrariCustode = document.getElementById('save-imported-data-btn-orari-custode');
@@ -4683,6 +4717,27 @@
                     return; 
                 }
                 
+                // Validazione del file
+                const allowedTypes = ['.xlsx', '.xls'];
+                const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+                if (!allowedTypes.includes(fileExtension)) {
+                    messageBoxOrariCustode.className = 'message-box error';
+                    messageBoxOrariCustode.textContent = 'Errore: Il file deve essere in formato Excel (.xlsx o .xls)';
+                    messageBoxOrariCustode.style.display = 'block';
+                    tableContainerOrariCustode.innerHTML = '<p style="color:var(--secondary-text);">Nessun file selezionato.</p>';
+                    return;
+                }
+                
+                // Validazione dimensione file (max 10MB)
+                const maxSize = 10 * 1024 * 1024; // 10MB
+                if (file.size > maxSize) {
+                    messageBoxOrariCustode.className = 'message-box error';
+                    messageBoxOrariCustode.textContent = 'Errore: Il file è troppo grande. Dimensione massima: 10MB';
+                    messageBoxOrariCustode.style.display = 'block';
+                    tableContainerOrariCustode.innerHTML = '<p style="color:var(--secondary-text);">Nessun file selezionato.</p>';
+                    return;
+                }
+                
                 orariCustodeFileName = file.name;
                 tableContainerOrariCustode.innerHTML = '<p>Caricamento anteprima...</p>';
                 
@@ -4691,47 +4746,114 @@
                     try {
                         const data = new Uint8Array(e.target.result);
                         const workbook = XLSX.read(data, { type: 'array' });
+                        
+                        if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+                            throw new Error("Il file Excel non contiene fogli di lavoro.");
+                        }
+                        
                         const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
-                        if (jsonData.length === 0) throw new Error("Il file è vuoto.");
+                        if (jsonData.length === 0) {
+                            throw new Error("Il file è vuoto o non contiene dati validi.");
+                        }
+                        
+                        // Validazione dei dati
+                        const firstRow = jsonData[0];
+                        if (!firstRow || Object.keys(firstRow).length === 0) {
+                            throw new Error("Il file non contiene colonne valide.");
+                        }
+                        
                         orariCustodeDataToSave = jsonData;
                         tableContainerOrariCustode.innerHTML = generateTableHTML(jsonData);
                         saveBtnContainerOrariCustode.classList.remove('hidden');
-                    } catch (err) {
-                        messageBoxOrariCustode.className = 'message-box error';
-                        messageBoxOrariCustode.textContent = `Errore: ${err.message}`;
+                        
+                        // Mostra messaggio di successo
+                        messageBoxOrariCustode.className = 'message-box success';
+                        messageBoxOrariCustode.textContent = `File caricato con successo! Trovate ${jsonData.length} righe di dati.`;
                         messageBoxOrariCustode.style.display = 'block';
+                        setTimeout(() => { messageBoxOrariCustode.style.display = 'none'; }, 3000);
+                        
+                    } catch (err) {
+                        console.error("Errore nel caricamento del file Excel:", err);
+                        messageBoxOrariCustode.className = 'message-box error';
+                        messageBoxOrariCustode.textContent = `Errore nel caricamento del file: ${err.message}`;
+                        messageBoxOrariCustode.style.display = 'block';
+                        tableContainerOrariCustode.innerHTML = '<p style="color:var(--secondary-text);">Nessun file selezionato.</p>';
                     }
                 };
+                
+                reader.onerror = () => {
+                    messageBoxOrariCustode.className = 'message-box error';
+                    messageBoxOrariCustode.textContent = 'Errore nella lettura del file. Riprova.';
+                    messageBoxOrariCustode.style.display = 'block';
+                    tableContainerOrariCustode.innerHTML = '<p style="color:var(--secondary-text);">Nessun file selezionato.</p>';
+                };
+                
                 reader.readAsArrayBuffer(file);
             });
 
             saveBtnOrariCustode.addEventListener('click', async () => {
-                if (!orariCustodeDataToSave) return;
+                if (!orariCustodeDataToSave) {
+                    messageBoxOrariCustode.className = 'message-box error';
+                    messageBoxOrariCustode.textContent = 'Nessun dato da salvare. Carica prima un file.';
+                    messageBoxOrariCustode.style.display = 'block';
+                    return;
+                }
+                
+                if (!confirm('Sei sicuro di voler sostituire tutti i dati degli orari esistenti? Questa azione è irreversibile.')) {
+                    return;
+                }
+                
+                const saveBtnText = document.getElementById('save-btn-text');
+                const saveBtnLoading = document.getElementById('save-btn-loading');
+                
                 saveBtnOrariCustode.disabled = true;
-                saveBtnOrariCustode.textContent = 'Salvataggio...';
+                saveBtnText.classList.add('hidden');
+                saveBtnLoading.classList.remove('hidden');
                 
                 try {
+                    // Prima elimina tutti i documenti esistenti
+                    const existingDocs = await getDocs(collection(db, "importedCustodeSchedule"));
+                    const deletePromises = existingDocs.docs.map(doc => deleteDoc(doc.ref));
+                    await Promise.all(deletePromises);
+                    
+                    // Poi aggiungi il nuovo documento
                     await addDoc(collection(db, "importedCustodeSchedule"), {
                         fileName: orariCustodeFileName,
                         tableData: orariCustodeDataToSave,
                         uploadedBy: currentUser.uid,
                         uploadedAt: serverTimestamp()
                     });
-                    await logActivity("custode_schedule_imported", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { fileName: orariCustodeFileName });
+                    
+                    await logActivity("custode_schedule_imported", currentUser.uid, `${userProfile.nome} ${userProfile.cognome}`, { 
+                        fileName: orariCustodeFileName,
+                        rowsImported: orariCustodeDataToSave.length 
+                    });
+                    
+                    // Salva il numero di righe prima del reset
+                    const rowsImported = orariCustodeDataToSave.length;
+                    
+                    // Reset del form
                     fileInputOrariCustode.value = '';
                     saveBtnContainerOrariCustode.classList.add('hidden');
                     tableContainerOrariCustode.innerHTML = '<p style="color:var(--secondary-text);">Nessun file selezionato.</p>';
+                    orariCustodeFileName = '';
+                    orariCustodeDataToSave = null;
+                    
+                    // Messaggio di successo
                     messageBoxOrariCustode.className = 'message-box success';
-                    messageBoxOrariCustode.textContent = 'Orari importati con successo!';
+                    messageBoxOrariCustode.textContent = `Orari importati con successo! ${rowsImported} righe salvate.`;
                     messageBoxOrariCustode.style.display = 'block';
-                    setTimeout(() => { messageBoxOrariCustode.style.display = 'none'; }, 3000);
+                    setTimeout(() => { messageBoxOrariCustode.style.display = 'none'; }, 5000);
+                    
                 } catch (error) {
+                    console.error("Errore durante il salvataggio degli orari:", error);
                     messageBoxOrariCustode.className = 'message-box error';
                     messageBoxOrariCustode.textContent = `Errore durante il salvataggio: ${error.message}`;
                     messageBoxOrariCustode.style.display = 'block';
                 } finally {
                     saveBtnOrariCustode.disabled = false;
-                    saveBtnOrariCustode.textContent = 'Salva e Sostituisci Dati';
+                    saveBtnText.classList.remove('hidden');
+                    saveBtnLoading.classList.add('hidden');
                 }
             });
         };
